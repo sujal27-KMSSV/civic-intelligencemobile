@@ -39,6 +39,11 @@ E2E re-run).
   create issue with photo (201, category pothole, severity low, routed to
   **Road Maintenance**) → `GET /api/my-reports/` returns the submitted issue
   with served `image_url` → all 200.
+- **On-device production E2E PASSED (motorola edge 20 fusion, `ZD2224MKS4`,
+  2026-09-13):** `integration_test/app_e2e_test.dart` driven against the live
+  URL — register → home → logout → login → report (photo + location +
+  description) → submit via real multipart POST → My Reports lists it → issue
+  details shows status timeline + `Issue #` — `00:42 +1: All tests passed!`
 - Production config: `check --deploy` warnings resolved at deploy (long random
   `SECRET_KEY`, `SECURE_SSL_REDIRECT=True`, HSTS enabled via env, CORS/CSRF
   locked to the onrender.com origin, `ALLOWED_HOSTS=.onrender.com`).
