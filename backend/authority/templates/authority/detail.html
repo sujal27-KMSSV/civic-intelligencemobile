@@ -1,0 +1,145 @@
+{% extends "authority/base.html" %}
+{% block title %}Issue #{{ issue.id }} — Authority{% endblock %}
+
+{% block content %}
+  <a href="{% url 'authority:dashboard' %}" class="muted">&larr; Back to queue</a>
+
+  <div class="flex" style="margin-top:10px">
+    <div class="main">
+      <div class="flex" style="gap:14px;align-items:flex-start">
+        <div>
+          {% if issue.image %}
+            <a href="{{ issue.image.url }}" target="_blank"><img src="{{ issue.image.url }}" class="thumb" style="width:220px;height:165px" /></a>
+            <div class="muted" style="margin-top:4px">Before</div>
+          {% endif %}
+        </div>
+        {% if issue.resolution_image %}
+        <div>
+          <a href="{{ issue.resolution_image.url }}" target="_blank"><img src="{{ issue.resolution_image.url }}" class="thumb" style="width:220px;height:165px" /></a>
+          <div class="muted" style="margin-top:4px">After (resolution)</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <h2 style="margin:14px 0 4px">Issue #{{ issue.id }}
+        <span class="pill st-{{ issue.status }}">{{ issue.status|title }}</span>
+        <span class="pill sev-{{ issue.severity }}">{{ issue.severity|upper }}</span>
+      </h2>
+      <p class="muted" style="margin-top:0">
+        Reported {{ issue.created_at|date:"j M Y H:i" }} by {{ issue.reporter.email }}
+        {% if issue.resolved_at %} &middot; Resolved {{ issue.resolved_at|date:"j M Y H:i" }}{% endif %}
+      </p>
+
+      <div class="card">
+        <p style="margin-top:0">{{ issue.description|default:"No description." }}</p>
+        <p class="muted" style="margin-bottom:0">
+          {{ issue.latitude }}, {{ issue.longitude }}{% if issue.address %} &middot; {{ issue.address }}{% endif %}
+        </p>
+      </div>
+
+      {% if analysis %}
+      <div class="analysis">
+        <strong>Civic analysis</strong>
+        <span class="muted">({{ analysis.engine_honest_label|default:analysis.engine }})</span>
+        <ul style="margin:8px 0 0;padding-left:20px">
+          <li>Category: <strong>{{ issue.category }}</strong> &middot;
+              Department: <strong>{{ issue.department }}</strong></li>
+          <li>Duplicate: <strong>{{ analysis.duplicate.is_duplicate|yesno:"yes,no" }}</strong>
+            {% if analysis.duplicate.is_duplicate %}
+              &middot; confidence {{ analysis.duplicate.similarity_score|floatformat:2 }}
+              &middot; count {{ analysis.duplicate.duplicate_count }}
+            {% endif %}
+          </li>
+          {% for signal in analysis.severity.signals %}
+            <li>{{ signal.type|title }}: {{ signal.value }} → +{{ signal.points }} pts</li>
+          {% endfor %}
+          <li>Severity score: <strong>{{ analysis.severity.score }}</strong> → {{ issue.severity|upper }}</li>
+        </ul>
+        {% if analysis.duplicate.similarity_score is not None %}
+          <p class="muted" style="margin-bottom:0">Similarity measurement uses explicit rules (Jaccard text overlap, GPS proximity, category match) — not a trained model.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if issue.resolution_similarity is not None %}
+        <div class="analysis">
+          <strong>Resolution verification</strong>
+          <span class="muted">(honest BEFORE/AFTER image comparison, dHash + brightness)</span>
+          <ul style="margin:8px 0 0;padding-left:20px">
+            <li>Image similarity: <strong>{{ issue.resolution_similarity|floatformat:2 }}</strong></li>
+            {% if issue.resolution_notes %}<li>Notes: {{ issue.resolution_notes }}</li>{% endif %}
+          </ul>
+        </div>
+      {% endif %}
+
+      {% if duplicates %}
+      <div class="card">
+        <h3>Cluster (reports of the same issue)</h3>
+        <table>
+          <tr><th>ID</th><th>Status</th><th>Reported</th></tr>
+          {% for d in duplicates %}
+            <tr>
+              <td><a href="{% url 'authority:issue_detail' d.id %}">#{{ d.id }}</a>
+                {% if d.pk == root.pk %}<span class="muted">(root)</span>{% endif %}</td>
+              <td>{{ d.status|title }}</td>
+              <td>{{ d.created_at|date:"j M Y H:i" }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="side">
+      <div class="card" style="margin-bottom:14px">
+        <h3>Lifecycle</h3>
+        <p class="muted" style="margin-top:0">Current: <strong>{{ issue.status|title }}</strong></p>
+        {% with t=issue.status %}
+          {% if t == 'reported' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="verified" /><button>Verify</button></form>
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="rejected" /><button class="ghost">Reject</button></form>
+          {% elif t == 'verified' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="assigned" /><button>Assign</button></form>
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="in_progress" /><button>Start work</button></form>
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="rejected" /><button class="ghost">Reject</button></form>
+          {% elif t == 'assigned' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="in_progress" /><button>Start work</button></form>
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="rejected" /><button class="ghost">Reject</button></form>
+          {% elif t == 'in_progress' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="rejected" /><button class="ghost">Reject</button></form>
+          {% elif t == 'resolved' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="in_progress" /><button class="ghost">Re-open</button></form>
+          {% elif t == 'rejected' %}
+            <form class="inline" method="post" action="{% url 'authority:transition' issue.id %}">{% csrf_token %}<input type="hidden" name="new_status" value="reported" /><button class="ghost">Re-open</button></form>
+          {% endif %}
+        {% endwith %}
+      </div>
+
+      {% if issue.status == 'in_progress' or issue.status == 'resolved' %}
+      {% if not issue.resolution_image %}
+      <div class="card" style="margin-bottom:14px">
+        <h3>Resolve with evidence</h3>
+        <form method="post" action="{% url 'authority:resolve' issue.id %}" enctype="multipart/form-data">
+          {% csrf_token %}
+          <p class="muted" style="margin-top:0">Upload a 'completed' photo. It is compared against the original report photo (honest heuristic image similarity, never auto-decided). This evidence is required to resolve the issue.</p>
+          <input type="file" name="image" accept="image/*" required style="margin-bottom:8px" />
+          <textarea name="notes" rows="2" placeholder="Resolution notes (optional)" style="width:100%;margin-bottom:8px"></textarea>
+          <button type="submit">Record resolution</button>
+        </form>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="card">
+        <h3>JSON API</h3>
+        <p class="muted">Same data &amp; actions via REST:</p>
+        <ul class="muted" style="padding-left:18px;margin-bottom:0">
+          <li><code>GET  /api/authority/issues/</code></li>
+          <li><code>POST /api/authority/issues/{{ issue.id }}/transition/</code></li>
+          <li><code>POST /api/authority/issues/{{ issue.id }}/resolve/</code></li>
+          <li><code>GET  /api/authority/stats/</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock %}

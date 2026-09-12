@@ -1,0 +1,82 @@
+{% extends "authority/base.html" %}
+{% block title %}Civic Intelligence — Authority Queue{% endblock %}
+
+{% block content %}
+  <div class="card" style="margin-bottom:16px">
+    <div class="grid">
+      <div><h3>Open issues</h3><div class="big">{{ stats.open }}</div></div>
+      <div><h3>Total</h3><div class="big">{{ stats.total }}</div></div>
+      <div><h3>Duplicates</h3><div class="big">{{ stats.duplicates }}</div></div>
+      <div><h3>Reported 24h</h3><div class="big">{{ stats.reported_today }}</div></div>
+    </div>
+  </div>
+
+  <div class="flex">
+    <div class="side">
+      <div class="card" style="margin-bottom:14px">
+        <h3>By status</h3>
+        <table>
+          {% for label, count in stats.by_status.items %}
+            <tr><td>{{ label }}</td><td style="text-align:right;font-weight:700">{{ count }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>By department</h3>
+        <table>
+          {% for dept, count in stats.by_department.items %}
+            <tr><td>{{ dept }}</td><td style="text-align:right;font-weight:700">{{ count }}</td></tr>
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+
+    <div class="main">
+      <div id="map"></div>
+      <div style="height:14px"></div>
+
+      <table>
+        <tr>
+          <th>ID</th><th>Photo</th><th>Description</th><th>Sev.</th><th>Dept.</th>
+          <th>Status</th><th>Reporter</th><th></th>
+        </tr>
+        {% for issue in issues %}
+          {% include "authority/_issue_row.html" %}
+        {% empty %}
+          <tr><td colspan="8" class="muted">No open issues. Nice work!</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    var map = L.map("map").setView([28.6139, 77.2090], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 18,
+    }).addTo(map);
+
+    var pts = {{ markers|safe }};
+    var colors = {
+      critical: "#d92d20", high: "#f79009", medium: "#f79009", low: "#12b76a"
+    };
+    pts.forEach(function (p) {
+      L.circleMarker([p.lat, p.lng], {
+        radius: p.dup > 0 ? 10 : 6,
+        color: "#fff", weight: 1, fillColor: colors[p.sev] || "#1947e5", fillOpacity: 0.85,
+      })
+        .addTo(map)
+        .bindPopup(
+          "<b>#" + p.id + "</b> " + p.sev.toUpperCase() +
+          "<br/>" + p.desc + "<br/><a href='" + p.url + "'>Open</a>"
+        );
+    });
+  </script>
+{% endblock %}

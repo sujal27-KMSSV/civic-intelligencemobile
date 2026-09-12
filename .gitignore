@@ -1,0 +1,92 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+swift_package_list.json
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VSCode related
+.vscode/
+*.code-workspace
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# iOS/XCode related
+**/ios/**/*.mode1v3
+**/ios/**/*.mode2v3
+**/ios/**/*.moved-aside
+**/ios/**/*.pbxuser
+**/ios/**/*.perspectivev3
+**/ios/**/*.sync/
+**/ios/**/DerivedData
+**/ios/**/Flutter/Generated.xcconfig
+**/ios/**/Flutter/ephemeral
+**/ios/**/Pods/
+**/ios/**/Runner.nocache
+
+# Windows/Visual Studio related
+**/windows/flutter/ephemeral
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugin_registrant.h
+**/windows/flutter/generated_plugins.cmake
+**/windows/Flutter/ephemeral
+**/windows/Flutter/generated_plugin_registrant.cc
+**/windows/Flutter/generated_plugin_registrant.h
+**/windows/Flutter/generated_plugins.cmake
+
+# Linux/GTK related
+**/linux/flutter/ephemeral
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugin_registrant.h
+**/linux/flutter/generated_plugins.cmake
+
+# Coverage related
+coverage/
+*.lcov
+*.info
+
+# Local env + runtime artifacts
+backend/.env
+backend/staticfiles/
+backend/media/
+backend/.venv/
+backend/venv/
+backend/db.sqlite3
+backend/*.err.log
+
+# Render CLI session
+~/.render/
+
+# Private release assets (keystore backups, signing properties) — never share
+release/private/

@@ -1,0 +1,10 @@
+<tr style="background:{% if issue.severity == 'critical' %}#fff5f5{% elif issue.severity == 'high' %}#fffcf5{% else %}#fff{% endif %}">
+  <td style="font-weight:700">#{{ issue.id }}</td>
+  <td>{% if issue.image %}<img src="{{ issue.image.url }}" class="thumb" loading="lazy" />{% endif %}</td>
+  <td>{{ issue.description|truncatewords:12|default:"—" }}</td>
+  <td><span class="pill sev-{{ issue.severity }}">{{ issue.severity|upper }}</span></td>
+  <td>{{ issue.department|default:"—" }}</td>
+  <td><span class="pill st-{{ issue.status }}">{{ issue.status|title }}</span></td>
+  <td class="muted">{{ issue.reporter.email|default:"—" }}</td>
+  <td><a href="{% url 'authority:issue_detail' issue.id %}" class="btn ghost" style="font-size:12px">Open</a></td>
+</tr>

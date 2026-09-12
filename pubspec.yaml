@@ -1,0 +1,55 @@
+name: civic_intelligence
+description: Smart-city civic reporting platform with rule-based analysis.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+  go_router: ^14.2.0
+  http: ^1.2.1
+  image_picker: ^1.0.7
+  geolocator: ^11.0.0
+  geocoding: ^3.0.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  cached_network_image: ^3.3.1
+  flutter_image_compress: ^2.1.0
+  path_provider: ^2.1.3
+  path: ^1.9.0
+  permission_handler: ^12.0.1
+  http_parser: ^4.1.2
+  flutter_secure_storage: ^9.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+  build_runner: ^2.4.9
+  riverpod_generator: ^2.4.1
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
+
+flutter:
+  uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/brand/app_icon.png
+  adaptive_icon_background: "#1A73E8"
+  adaptive_icon_foreground: assets/brand/app_icon_foreground.png
+  min_sdk_android: 21
+
+flutter_native_splash:
+  color: "#1A73E8"
+  image: assets/brand/splash_logo.png
+  android: true
+  ios: true

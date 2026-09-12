@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Civic Intelligence — Authority{% endblock %}</title>
+  <style>
+    :root {
+      --ink: #1c2333;
+      --muted: #667085;
+      --line: #e4e7ec;
+      --brand: #1947e5;
+      --bg: #f7f8fb;
+      --ok: #12b76a;
+      --warn: #f79009;
+      --bad: #d92d20;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--ink);
+    }
+    header {
+      background: var(--ink); color: #fff; padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { font-size: 17px; margin: 0; }
+    header a { color: #c7d2fe; text-decoration: none; font-size: 13px; }
+    .wrap { max-width: 1120px; margin: 24px auto; padding: 0 24px 48px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+    .card {
+      background: #fff; border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .card .big { font-size: 26px; font-weight: 700; }
+    .flex { display: flex; gap: 20px; align-items: flex-start; }
+    .main { flex: 2; min-width: 0; }
+    .side { flex: 1; min-width: 0; }
+    table { width: 100%; border-collapse: collapse; background: #fff;
+      border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line);
+      vertical-align: top; }
+    th { background: #f0f2f7; font-size: 12px; color: var(--muted); }
+    .pill { display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; }
+    .sev-critical { background: #fee4e2; color: #b42318; }
+    .sev-high { background: #ffead5; color: #b54708; }
+    .sev-medium { background: #fef0c7; color: #b54708; }
+    .sev-low { background: #e4f7f2; color: #067647; }
+    .st-open { background: #e0eaff; color: #1947e5; }
+    .st-resolved { background: #d1fadf; color: #067647; }
+    .st-rejected { background: #f2f4f7; color: #667085; }
+    button, .btn {
+      background: var(--brand); color: #fff; border: 0; border-radius: 8px;
+      padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    button:hover, .btn:hover { filter: brightness(1.08); }
+    button.ghost { background: #fff; color: var(--brand);
+      border: 1px solid var(--brand); }
+    form.inline { display: inline; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .err { background: #fef3f2; border: 1px solid #fda29b; color: #b42318;
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+    .ok { background: #ecfdf3; border: 1px solid #a6f4c5; color: #067647;
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+    #map { height: 340px; border-radius: 10px; border: 1px solid var(--line); }
+    .analysis { background: #f7f9ff; border: 1px dashed #c7d2fe; border-radius: 8px;
+      padding: 12px 14px; margin: 10px 0; }
+    img.thumb { width: 110px; height: 82px; object-fit: cover; border-radius: 6px;
+      border: 1px solid var(--line); }
+    .msg { margin: 8px 0; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <h1>Civic Intelligence — Authority Dashboard</h1>
+    <div>
+      {% if user.is_authenticated %}
+        <span style="margin-right:12px">{{ user.email }}</span>
+        <a href="{% url 'admin:index' %}">Django admin</a> &nbsp;|&nbsp;
+        <a href="{% url 'admin:logout' %}">Log out</a>
+      {% else %}
+        <a href="{% url 'admin:login' %}">Staff login</a>
+      {% endif %}
+    </div>
+  </header>
+  <div class="wrap">
+    {% for message in messages %}
+      <div class="msg {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
