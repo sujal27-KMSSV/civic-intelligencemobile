@@ -3,28 +3,30 @@
 Generated: 2026-09-13
 
 ## A. Status
-**READY FOR RELEASE — PRODUCTION DEPLOYMENT PENDING ONE MANUAL ACTION**
-All local engineering, security, signing, and test gates pass. The only remaining
-step is creating a hosting account + domain (and optional Google Play account),
-which requires human credentials/verification and cannot be automated.
+**DEPLOYED AND LIVE.** Backend + managed Postgres running on Render (free tier);
+signed APK/AAB built against the real HTTPS URL; end-to-end smoke tests pass
+against production. Only optional extras remain (Play Store account, real-device
+E2E re-run).
 
 ## B. Production API URL
-**None yet.** No public URL exists and none was invented. See section J for the
-exact steps to obtain one (hosting account → `build-production.ps1` → real URL).
-The shipped demo APK points at a LAN backend for judging/demo only.
+**https://civic-intelligence-api.onrender.com** (verified: `GET /api/health/` →
+`{"status":"ok"}`, `GET /api/issues/` → 200).
+- App in `release/CivicIntelligence.apk` / `CivicIntelligence.aab` points at this
+  URL (embedded, verified in `libapp.so` — no LAN/emulator IPs remain).
 
 ## C. APK
-- `release/CivicIntelligence.apk` — **NOT BUILT YET**; produced by
-  `release\scripts\build-production.ps1 -ApiUrl https://<your-domain>`
-  against the live HTTPS URL (signed with the release key).
-- `release/CivicIntelligence-local-demo.apk` (52.7 MB) — signed with the release
-  key, points at `http://192.168.1.8:8000` (LAN demo only). Signer confirmed via
-  `apksigner`: `CN=Civic Intelligence, ...`.
+- `release/CivicIntelligence.apk` (52.7 MB) — **PRODUCTION build (signed with the
+  release key)**, points at `https://civic-intelligence-api.onrender.com`.
+  Signer verified via `apksigner`: `CN=Civic Intelligence`; binary scan confirms
+  the production URL is embedded and no `192.168.x`/`10.0.2.2`/`127.0.0.1` refs
+  exist in `libapp.so`.
+- `release/CivicIntelligence-local-demo.apk` (52.7 MB) — earlier LAN demo build
+  (points at `http://192.168.1.8:8000`), kept for offline/demo use only.
 
 ## D. AAB
-- `release/CivicIntelligence.aab` — **NOT BUILT YET**; produced by the same
-  command as section C (Play Store upload candidate).
-- `release/CivicIntelligence-app-release.aab` (51.5 MB) — signed demo AAB (LAN).
+- `release/CivicIntelligence.aab` (51.5 MB) — **PRODUCTION Play-Store upload
+  candidate** (same production URL, signed with the release key).
+- `release/CivicIntelligence-app-release.aab` — earlier LAN demo AAB.
 
 ## E. Version
 - `1.0.0+1` (versionName 1.0.0, versionCode 1), package
@@ -32,55 +34,52 @@ The shipped demo APK points at a LAN backend for judging/demo only.
 
 ## F. Test results
 - Django backend: **37/37** passed.
-- Flutter analyze: **0 issues**.
-- Flutter widget/integration-safe tests: **118/118** passed.
-- On-device E2E (prior session, signed build): register → list → login → submit
-  report (201, analysis payload) → my-reports → media all 200 against live backend.
-- Production config dry-run: `manage.py check --deploy` → warnings only
-  (HSTS/SSL-redirect to be enabled at deploy via env); `collectstatic` OK (157
-  files). `GET /api/health/` → `{"status":"ok"}` on the running server.
+- Flutter analyze: **0 issues**; Flutter tests: **118/118** passed.
+- Production smoke (live HTTPS, 2026-09-13): register (201) → login (200) →
+  create issue with photo (201, category pothole, severity low, routed to
+  **Road Maintenance**) → `GET /api/my-reports/` returns the submitted issue
+  with served `image_url` → all 200.
+- Production config: `check --deploy` warnings resolved at deploy (long random
+  `SECRET_KEY`, `SECURE_SSL_REDIRECT=True`, HSTS enabled via env, CORS/CSRF
+  locked to the onrender.com origin, `ALLOWED_HOSTS=.onrender.com`).
 
-## G. Deployment
-- **Not deployed (single manual blocker).** Everything else is pre-staged:
-  - `backend/Dockerfile` (migrate + collectstatic + gunicorn on boot)
-  - `render.yaml` Render blueprint (web service, `SECRET_KEY` auto-generated,
-    Postgres env wiring, `/api/health/` checks)
-  - `backend/.env.production.example` (full env template)
-  - `Procfile` + `runtime.txt` (python-3.14) for platform deployments
-  - HSTS env-gated; SSL redirect, cookie-security, CORS locked, staff-only
-    authority endpoints.
+## G. Deployment (live)
+- Render web service `civic-intelligence-api` (id `srv-dairo2oae00c73fmop20`),
+  Docker runtime, rootDir `backend`, deploy from GitHub main.
+- Render Postgres `civic-intelligence-db` (id `dpg-daireu9594qs739td79g-a`,
+  v16, free/oregon) — `civic_intelligence` DB wired via env.
+- `backend/Dockerfile` runs migrate + collectstatic + gunicorn on boot.
+- `render.yaml` blueprint kept in repo; service provisioned via Render CLI.
+- Free-tier caveats: data/media lives on an ephemeral disk — durable media
+  storage (S3/R2 or a Render disk) is a recommended follow-up; single instance.
 
 ## H. Signing
-- Release keystore generated (RSA 2048, alias `upload`, 10000-day validity):
-  - `android/app/upload-keystore.jks` + `android/key.properties` (gitignored)
-  - **Backup: `release/private/` (copy moved here — keep safe, never commit/share)**
-  - Password is stored ONLY in `key.properties`; it was never printed anywhere.
-- `android/app/build.gradle.kts` signs release builds with this key; it falls
-  back to the debug key only if `key.properties` is absent (dev convenience).
-- If you change your mind on the password, regenerate before any Play upload.
+- Release keystore: `android/app/upload-keystore.jks` + `android/key.properties`
+  (both gitignored); **backup in `release/private/` — keep safe, never
+  commit/share.** Password stored only in `key.properties` (never printed).
+- `android/app/build.gradle.kts` release-signs; debug-key fallback only when
+  `key.properties` is absent.
 
-## I. Remaining manual actions (only these)
-1. **Create a hosting account (Render/Railway/Fly) + optional domain** and
-   a managed PostgreSQL DB. Render: New → Blueprint → this repo -> fill env
-   values (`ALLOWED_HOSTS`, `DB_*`, `CORS_*`, `CSRF_TRUSTED_ORIGINS`).
-2. Verify `curl https://<your-domain>/api/health/` → `{"status":"ok"}`.
-3. Build the real release APK/AAB:
-   `release\scripts\build-production.ps1 -ApiUrl https://<your-domain>`.
-4. (Optional) Play Store: create a Play Console developer account ($25) and
-   upload `CivicIntelligence.aab` under this signing key. This was NOT done.
-5. (Optional) GitHub: initialize the repo and open a GitHub Release to share the
-   production APK. `gh`/git remote are not configured on this machine.
+## I. Remaining manual/optional actions
+1. **Real-device E2E re-run** with the production APK: connect the phone
+   (USB debugging) and I'll run `integration_test/app_e2e_test.dart` against the
+   live URL. Since this needs a physical device it couldn't be automated here.
+2. **Security housekeeping (rec.)**: rotate the Render Postgres password and the
+   GitHub PATs that were pasted into this session's chat; the DB is fresh and
+   used only by this project, so risk is low.
+3. **Play Store**: create a Play Console account ($25, human verification) and
+   upload `CivicIntelligence.aab`. Not done — requires the account holder.
+4. GitHub Release for `release/CivicIntelligence.apk` when you want to share it.
 
-## J. Demo instructions (until hosted)
-1. Start backend: `backend\.venv\Scripts\python.exe backend\manage.py runserver 0.0.0.0:8000`
-2. Install `release/CivicIntelligence-local-demo.apk` on an Android device on
-   the same LAN (app is pre-pointed at `http://192.168.1.8:8000` — adjust the
-   dart-define + rebuild only if that IP differs).
-3. Register → submit a civic report → watch rule-based analysis (severity,
-   department routing, duplicate detection), then sign in as staff
-   (`createsuperuser`) and open `/authority/` to review/report/resolve.
+## J. Demo instructions
+- Public app: install `release/CivicIntelligence.apk` anywhere — it talks to the
+  live backend. Register → report an issue with a photo → follow the rule-based
+  analysis (severity, department routing, duplicates).
+- Local demo (offline): `backend\.venv\Scripts\python.exe backend\manage.py
+  runserver 0.0.0.0:8000` + `release/CivicIntelligence-local-demo.apk` on the
+  same LAN. Staff console: `createsuperuser` → `/authority/`.
 
 ## K. Final verdict
-Code, security, signing, tests, and release tooling are complete and green.
-**The project is release-ready; a human account + domain are the only
-prerequisite to going public (no URL was fabricated).**
+Complete and live: code green, tests green, signed production artifacts built
+against the real HTTPS URL, deploy verified end-to-end with real requests.
+Production URL is real and reachable (not fabricated).

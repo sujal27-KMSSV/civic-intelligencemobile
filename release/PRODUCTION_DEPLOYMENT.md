@@ -1,15 +1,21 @@
 # Civic Intelligence — Production Deployment
 
-## Single manual step
-The codebase is production-ready and **release signing is already provisioned**,
-but **deployment requires a hosting account and your own production
-URLs/credentials** — this cannot be automated for you.
+## Status: LIVE
+Production backend is deployed and reachable at
+**https://civic-intelligence-api.onrender.com** (Render web service +
+managed Postgres, see `FINAL_RELEASE_REPORT.md`). The final signed
+`release/CivicIntelligence.apk` / `.aab` are built against that URL.
 
-Pick one of:
+This page documents how the deployment was done (and how to reproduce it).
+
+## Single manual step
+Deployment needs a hosting account + credentials from the owner. On this
+machine it was authenticated via the Render CLI (OAuth); for team use pick one
+of:
 - Render / Railway / Fly.io for the Django web service (+ managed PostgreSQL).
 - A domain (e.g. `api.example.com`) pointed at the service.
 
-## Then deploy
+## Then deploy (reproduce)
 
 1. **Render (one-click):** a `render.yaml` blueprint and `backend/Dockerfile`
    are included. In the Render dashboard: *New → Blueprint* → select this repo.
