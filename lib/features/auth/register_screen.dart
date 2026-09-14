@@ -185,6 +185,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock_outlined),
                     errorText: _fieldError('password'),
+                    helperText:
+                        '8+ chars with upper, lower, digit and a special character.',
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -200,6 +202,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       return 'Please enter a password';
                     }
                     if (v.length < 8) return 'Must be at least 8 characters';
+                    if (!RegExp(r'[A-Z]').hasMatch(v)) {
+                      return 'Must include an uppercase letter';
+                    }
+                    if (!RegExp(r'[a-z]').hasMatch(v)) {
+                      return 'Must include a lowercase letter';
+                    }
+                    if (!RegExp(r'[0-9]').hasMatch(v)) {
+                      return 'Must include a digit';
+                    }
+                    if (!RegExp(r'[^A-Za-z0-9]').hasMatch(v)) {
+                      return 'Must include a special character (e.g. !@#\$)';
+                    }
                     return null;
                   },
                 ),

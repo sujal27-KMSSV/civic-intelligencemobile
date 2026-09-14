@@ -90,6 +90,11 @@ class Issue(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["category"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["reporter", "created_at"]),
+        ]
 
     def __str__(self):
         return f"Issue #{self.pk} ({self.category})"

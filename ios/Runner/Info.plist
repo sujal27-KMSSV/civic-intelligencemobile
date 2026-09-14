@@ -5,15 +5,15 @@
 		<key>CADisableMinimumFrameDurationOnPhone</key>
 		<true/>
 		<key>NSCameraUsageDescription</key>
-		<string>Civic Intelligence uses the camera to let you photograph civic issues for reports.</string>
+		<string>FixMyGrid uses the camera to let you photograph civic issues for reports.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
-		<string>Civic Intelligence lets you choose a photo of a civic issue from your library to attach to a report.</string>
+		<string>FixMyGrid lets you choose a photo of a civic issue from your library to attach to a report.</string>
 		<key>NSLocationWhenInUseUsageDescription</key>
-		<string>Civic Intelligence uses your location to route reports to the correct ward.</string>
+		<string>FixMyGrid uses your location to route reports to the correct ward.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
-		<string>Civic Intelligence</string>
+		<string>FixMyGrid</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>

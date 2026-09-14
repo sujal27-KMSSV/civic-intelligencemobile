@@ -18,12 +18,12 @@ void main() {
         overrides: [
           authStorageProvider.overrideWithValue(InMemoryAuthStorage()),
         ],
-        child: const CivicIntelligenceApp(),
+        child: const FixMyGridApp(),
       ),
     );
     await tester.pump();
 
-    expect(find.text('Civic Intelligence'), findsOneWidget);
+    expect(find.text('FixMyGrid'), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pumpAndSettle();
@@ -52,7 +52,7 @@ void main() {
             authStorageProvider.overrideWithValue(storage),
             apiClientProvider.overrideWithValue(api),
           ],
-          child: const CivicIntelligenceApp(),
+          child: const FixMyGridApp(),
         ),
       );
       await tester.pump(const Duration(milliseconds: 2500));
@@ -101,7 +101,7 @@ void main() {
             authStorageProvider.overrideWithValue(storage),
             apiClientProvider.overrideWithValue(api),
           ],
-          child: const CivicIntelligenceApp(),
+          child: const FixMyGridApp(),
         ),
       );
       await tester.pump(const Duration(milliseconds: 2500));
@@ -124,11 +124,11 @@ void main() {
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Password'),
-        'secret123',
+        'SafeCivic#123',
       );
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Confirm Password'),
-        'secret123',
+        'SafeCivic#123',
       );
 
       await tester.tap(find.widgetWithText(FilledButton, 'Register'));

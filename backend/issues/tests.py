@@ -197,6 +197,49 @@ class IssueApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_delete_own_issue_allowed(self):
+        issue = self._make_issue(self.user)
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_other_users_issue_forbidden(self):
+        issue = self._make_issue(self.other)
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_requires_auth(self):
+        issue = self._make_issue(self.user)
+        self.client.credentials()
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_missing_issue_404(self):
+        response = self.client.delete("/api/issues/999999/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_removes_media_file(self):
+        issue = self._make_issue(self.user)
+        self.assertTrue(issue.image.storage.exists(issue.image.name))
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(issue.image.storage.exists(issue.image.name))
+
+    def test_other_user_my_reports_fully_isolated(self):
+        mine = self._make_issue(self.user)
+        theirs = self._make_issue(self.other)
+        other_token, _ = Token.objects.get_or_create(user=self.other)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {other_token.key}")
+        response = self.client.get("/api/my-reports/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in response.json()]
+        self.assertEqual(ids, [theirs.id])
+        self.assertNotIn(mine.id, ids)
+        # Reporter id is never exposed through the public/detail/list payload.
+        detail = self.client.get(f"/api/issues/{mine.id}/").json()
+        self.assertNotIn("reporter", detail)
+
 
 class CivicAnalysisTests(APITestCase):
     """Rule-based civic intelligence: dupes, severity, routing."""

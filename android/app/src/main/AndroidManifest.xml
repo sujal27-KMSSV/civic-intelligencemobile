@@ -4,14 +4,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
-        android:label="Civic Intelligence"
+        android:label="FixMyGrid"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
-        <!-- usesCleartextTraffic allows plain-HTTP (http://) API calls from
-             DEBUG, PROFILE and RELEASE builds. The demo backend is served over
-             HTTP on a LAN/emulator. Remove this once the API is served over
-             HTTPS (see API.md: production must be HTTPS). -->
+        android:usesCleartextTraffic="false">
+        <!-- Production API is HTTPS-only, so cleartext HTTP is disabled.
+             Debug builds may opt back in via src/debug/AndroidManifest.xml
+             for local LAN/emulator demos. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

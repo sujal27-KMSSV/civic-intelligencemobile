@@ -1,7 +1,7 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Civic Intelligence';
+  static const String appName = 'FixMyGrid';
   static const String tokenKey = 'auth_token';
   static const String tokenSchemeKey = 'auth_token_scheme';
   static const String refreshTokenKey = 'refresh_token';

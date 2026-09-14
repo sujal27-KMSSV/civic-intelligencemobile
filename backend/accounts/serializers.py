@@ -1,4 +1,5 @@
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError as django_validation
 from rest_framework import serializers
 
 from .models import User
@@ -28,6 +29,15 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "A user with this email address already exists."
             )
+        return value
+
+    def validate_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+
+        try:
+            validate_password(value)
+        except django_validation as exc:
+            raise serializers.ValidationError(list(exc.messages))
         return value
 
     def create(self, validated_data):

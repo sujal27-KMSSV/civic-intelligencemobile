@@ -292,7 +292,7 @@ class _AnalysisSection extends StatelessWidget {
     final confidence = analysis.confidence;
 
     return _SectionCard(
-      title: 'Civic analysis',
+      title: 'FixMyGrid analysis',
       icon: Icons.auto_awesome_outlined,
       children: [
         if (confidence > 0)
@@ -379,7 +379,7 @@ class _AnalysisUnavailable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _SectionCard(
-      title: 'Civic analysis',
+      title: 'FixMyGrid analysis',
       icon: Icons.auto_awesome_outlined,
       children: [
         _InfoRow(

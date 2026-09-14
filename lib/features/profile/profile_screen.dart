@@ -106,7 +106,7 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.info_outline),
-                  title: const Text('About Civic Intelligence'),
+                  title: const Text('About FixMyGrid'),
                   subtitle: const Text('v1.0.0'),
                   onTap: () {},
                 ),

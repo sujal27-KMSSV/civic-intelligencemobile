@@ -47,10 +47,15 @@ class HomeScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'Recent Reports',
+                        'Community Reports',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Reports shared by you and other residents in your area.',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
                       ),
                       const SizedBox(height: 4),
                       InkWell(
@@ -61,7 +66,7 @@ class HomeScreen extends ConsumerWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                'View all',
+                                'View your reports',
                                 style: TextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -143,9 +148,10 @@ class HomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 64),
               child: EmptyState(
                 icon: Icons.travel_explore,
-                title: 'No civic issues yet',
+                title: 'No community reports yet',
                 message:
-                    'Be the first to report an issue and help improve your city.',
+                    'Reports shared by residents will appear here. Be the first '
+                    'to report an issue and help improve your city.',
                 action: FilledButton.icon(
                   onPressed: () => context.go('/report'),
                   icon: const Icon(Icons.add_a_photo_outlined),
@@ -261,7 +267,7 @@ class _Header extends StatelessWidget {
             children: [
               _StatTile(
                 value: issues.length.toString(),
-                label: 'Reports',
+                label: 'Community',
                 icon: Icons.report_gmailerrorred_outlined,
               ),
               const SizedBox(width: 12),

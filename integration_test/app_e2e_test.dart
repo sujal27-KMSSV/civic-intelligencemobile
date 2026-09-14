@@ -94,7 +94,7 @@ void main() {
           mediaServiceProvider.overrideWithValue(_FakeMediaService(photo)),
           locationServiceProvider.overrideWithValue(_FakeLocationService()),
         ],
-        child: const app.CivicIntelligenceApp(),
+        child: const app.FixMyGridApp(),
       ),
     );
 
@@ -121,7 +121,7 @@ void main() {
     await _tap(tester, find.text('Register'));
 
     // Authenticated session: home screen (shell) appears.
-    await _pumpUntil(tester, find.text('Recent Reports'));
+    await _pumpUntil(tester, find.text('Community Reports'));
     expect(find.byType(NavigationBar), findsWidgets);
 
     // ---- LOGOUT -------------------------------------------------------------
@@ -154,7 +154,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await _tap(tester, find.text('Sign In'));
 
-    await _pumpUntil(tester, find.text('Recent Reports'));
+    await _pumpUntil(tester, find.text('Community Reports'));
     expect(find.byType(NavigationBar), findsWidgets);
 
     // ---- REPORT AN ISSUE ----------------------------------------------------

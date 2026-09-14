@@ -18,6 +18,7 @@ urlpatterns = [
     path("api/", include("issues.urls")),
 ]
 
-# Serve uploaded media in development (runserver + DEBUG).
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve uploaded media in both development and production. On the single
+# application instance this is the direct path; at scale swap MEDIA_STORAGE for
+# a CDN/object store (see settings.MEDIA_STORAGE_BACKEND).
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -13,7 +13,7 @@ class AuthApiTests(APITestCase):
             "last_name": "Doe",
             "email": "citizen@example.com",
             "phone": "+911234567890",
-            "password": "secret123",
+            "password": "SafeCivic#123",
         }
         payload.update(overrides)
         return payload
@@ -32,7 +32,7 @@ class AuthApiTests(APITestCase):
         self.assertEqual(data["user"]["phone"], "+911234567890")
         self.assertNotIn("password", data)
         user = User.objects.get(email="citizen@example.com")
-        self.assertTrue(user.check_password("secret123"))
+        self.assertTrue(user.check_password("SafeCivic#123"))
 
     def test_register_duplicate_email_returns_400(self):
         User.objects.create_user(
@@ -94,3 +94,46 @@ class AuthApiTests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
         response = self.client.get("/api/my-reports/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def _register_password(self, password):
+        return self.client.post(
+            "/api/auth/register/",
+            self._register_payload(email=f"pw-{abs(hash(password))}@example.com", password=password),
+            format="json",
+        )
+
+    def test_register_rejects_short_password(self):
+        response = self._register_password("Aa1!aa")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("password", response.json())
+
+    def test_register_rejects_missing_uppercase(self):
+        response = self._register_password("alllower#123")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("uppercase", response.json()["password"][0].lower())
+
+    def test_register_rejects_missing_lowercase(self):
+        response = self._register_password("ALLUPPER#123")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("lowercase", response.json()["password"][0].lower())
+
+    def test_register_rejects_missing_digit(self):
+        response = self._register_password("NoDigitsHere#X")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("digit", response.json()["password"][0].lower())
+
+    def test_register_rejects_missing_special(self):
+        response = self._register_password("NoSpecialChar123")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("special", response.json()["password"][0].lower())
+
+    def test_register_rejects_weak_mixed_password(self):
+        response = self._register_password("nosecret1")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        errors = " ".join(response.json()["password"])
+        self.assertIn("uppercase", errors)
+        self.assertIn("special", errors)
+
+    def test_register_accepts_strong_password(self):
+        response = self._register_password("Grid Fix@2026x")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

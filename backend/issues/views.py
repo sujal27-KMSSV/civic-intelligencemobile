@@ -42,16 +42,23 @@ class IssueViewSet(viewsets.ModelViewSet):
     - GET    /api/issues/{id}/     public detail
     - POST   /api/issues/          authenticated citizen submission (multipart)
     - PATCH  /api/issues/{id}/     reporter or staff update
+    - DELETE /api/issues/{id}/     reporter or staff delete
     """
 
     queryset = Issue.objects.all().order_by("-created_at")
     serializer_class = IssueSerializer
-    http_method_names = ["get", "post", "patch", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_permissions(self):
-        if self.action in {"create", "partial_update"}:
+        if self.action in {"create", "partial_update", "destroy"}:
             return [permissions.IsAuthenticated(), IsOwnerOrStaff()]
         return [permissions.AllowAny()]
+
+    def perform_delete_cleanup(self, issue):
+        """Remove stored media for a deleted report."""
+        for field in (issue.image, issue.resolution_image):
+            if field:
+                field.delete(save=False)
 
     def perform_create(self, serializer):
         # Civic-analysis fields are owned by the backend, never trusted from
@@ -111,6 +118,10 @@ class IssueViewSet(viewsets.ModelViewSet):
                     raise ValidationError({"status": error})
 
         serializer.save()
+
+    def perform_destroy(self, instance):
+        self.perform_delete_cleanup(instance)
+        instance.delete()
 
 
 class MyReportsView(generics.ListAPIView):

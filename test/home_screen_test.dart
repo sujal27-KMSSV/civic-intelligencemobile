@@ -56,6 +56,10 @@ void main() {
 
   testWidgets('renders reports from the repository with header stats',
       (tester) async {
+    tester.view.physicalSize = const Size(800, 1600) * tester.view.devicePixelRatio;
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final repo = FakeHomeRepository(
       issues: [sample, const Issue(id: 'CI-1', status: 'resolved')],
     );
@@ -75,7 +79,7 @@ void main() {
     await tester.pumpWidget(buildApp(FakeHomeRepository()));
     await tester.pumpAndSettle();
 
-    expect(find.text('No civic issues yet'), findsOneWidget);
+    expect(find.text('No community reports yet'), findsOneWidget);
     expect(find.byType(IssueCard), findsNothing);
   });
 

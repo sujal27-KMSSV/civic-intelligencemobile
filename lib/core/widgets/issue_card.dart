@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/issue.dart';
+import 'remote_photo.dart';
 import 'severity_chip.dart';
 import 'status_chip.dart';
 
@@ -34,6 +35,10 @@ class IssueCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (issue.imageUrl != null) ...[
+                RemotePhoto(url: issue.imageUrl),
+                const SizedBox(height: 12),
+              ],
               Row(
                 children: [
                   Expanded(

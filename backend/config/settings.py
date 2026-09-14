@@ -121,6 +121,15 @@ AUTH_PASSWORD_VALIDATORS = [
         ),
         "OPTIONS": {"min_length": 8},
     },
+    {
+        "NAME": (
+            "django.contrib.auth.password_validation"
+            ".UserAttributeSimilarityValidator"
+        ),
+    },
+    {
+        "NAME": "accounts.validators.ComplexityPasswordValidator",
+    },
 ]
 
 REST_FRAMEWORK = {
@@ -155,7 +164,21 @@ STORAGES = {
     },
 }
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BASE_DIR / "media")))
+
+# Storage backends abstraction: local filesystem by default; switch to an
+# S3-compatible object store in production by setting MEDIA_STORAGE_BACKEND=s3
+# (requires `django-storages[boto3]` + AWS_* env vars).
+MEDIA_STORAGE_BACKEND = os.getenv("MEDIA_STORAGE_BACKEND", "filesystem").strip().lower()
+if MEDIA_STORAGE_BACKEND == "s3":
+    try:
+        import storages  # noqa: F401  (django-storages must be installed)
+    except ImportError as exc:
+        raise RuntimeError(
+            "MEDIA_STORAGE_BACKEND=s3 requires `django-storages[boto3]` in "
+            "requirements.txt and AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_STORAGE_BUCKET_NAME."
+        ) from exc
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

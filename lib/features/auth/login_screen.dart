@@ -202,7 +202,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       spacing: 4,
                       children: [
                         Text(
-                          'New to Civic Intelligence?',
+                          'New to FixMyGrid?',
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                         TextButton(
