@@ -32,6 +32,7 @@ Known limitations (deliberate, documented):
 
 from __future__ import annotations
 
+import io
 import math
 import re
 from pathlib import Path
@@ -334,12 +335,30 @@ def run_analysis(issue) -> dict:
 # Resolution verification (honest, heuristic image comparison).
 # --------------------------------------------------------------------------
 
-def _dhash(path: str | Path) -> list[int] | None:
-    """Perceptual difference-hash of an image (Pillow, no extra deps)."""
+def _read_saved_image(name: str) -> bytes | None:
+    """Read a stored media file through the configured storage backend."""
+    try:
+        from django.core.files.storage import default_storage
+
+        with default_storage.open(name or "", "rb") as fh:
+            return fh.read()
+    except Exception:
+        return None
+
+
+def _dhash(name: str) -> list[int] | None:
+    """Perceptual difference-hash of an image (Pillow, no extra deps).
+
+    Reads through Django's configured storage so it works with local disk
+    (dev) and S3/R2 (production) alike.
+    """
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(path) as im:
+        data = _read_saved_image(name)
+        if data is None:
+            return None
+        with Image.open(io.BytesIO(data)) as im:
             im = ImageOps.exif_transpose(im)
             im = im.convert("L").resize((DHASH_SIZE + 1, DHASH_SIZE), Image.LANCZOS)
         bits = []
@@ -355,12 +374,15 @@ def _dhash(path: str | Path) -> list[int] | None:
         return None
 
 
-def _brightness_ratio(path: str | Path) -> float | None:
+def _brightness_ratio(name: str) -> float | None:
     """Mean grayscale brightness of the image in 0..1."""
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(path) as im:
+        data = _read_saved_image(name)
+        if data is None:
+            return None
+        with Image.open(io.BytesIO(data)) as im:
             im = ImageOps.exif_transpose(im).convert("L")
             hist = im.histogram()
         total = sum(hist)
@@ -371,8 +393,8 @@ def _brightness_ratio(path: str | Path) -> float | None:
         return None
 
 
-def image_similarity(path_before: str | Path, path_after: str | Path) -> dict:
-    """Compare BEFORE/AFTER photos.
+def image_similarity(name_before: str, name_after: str) -> dict:
+    """Compare BEFORE/AFTER photos (storage names, e.g. ``issue.image.name``).
 
     Returns an honest measurement object:
     {
@@ -387,8 +409,8 @@ def image_similarity(path_before: str | Path, path_after: str | Path) -> dict:
     which suggests the problem is NOT visually fixed. It is NEVER used to
     auto-resolve an issue -- that remains an authority decision.
     """
-    before = _dhash(path_before)
-    after = _dhash(path_after)
+    before = _dhash(name_before)
+    after = _dhash(name_after)
     if before is None or after is None or len(before) != len(after):
         return {
             "similarity": None,
@@ -408,8 +430,8 @@ def image_similarity(path_before: str | Path, path_after: str | Path) -> dict:
         "similarity": similarity,
         "method": "dhash-hamming-64",
         "interpretation": interpretation,
-        "brightness_before": _brightness_ratio(path_before),
-        "brightness_after": _brightness_ratio(path_after),
+        "brightness_before": _brightness_ratio(name_before),
+        "brightness_after": _brightness_ratio(name_after),
     }
     return result
 

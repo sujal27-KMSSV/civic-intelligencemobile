@@ -56,8 +56,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   String _friendlyMessage(Object error) {
     if (error is AuthException) return error.message;
-    if (error is NetworkException) return error.message;
-    if (error is ServerException) return error.message;
+    if (error is NetworkException) {
+      if (error.statusCode == 408) {
+        return 'The server took too long to respond. Please try again.';
+      }
+      return error.message;
+    }
+    if (error is ServerException) {
+      if (error.statusCode == 404) {
+        return 'The login service is temporarily unavailable. Please try again later.';
+      }
+      if (error.statusCode == 500) {
+        return 'The server hit a problem. Please try again in a few moments.';
+      }
+      return error.message;
+    }
     if (error is ValidationException) {
       final nonField = error.fieldErrors['non_field_errors'];
       if (nonField != null && nonField.isNotEmpty) return nonField.first;
@@ -66,7 +79,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             'Please check your details and try again.';
       }
     }
-    return 'An unexpected error occurred. Please try again.';
+    return 'An unexpected error occurred. Please check your connection and try again.';
   }
 
   @override
@@ -89,13 +102,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       AppConstants.appName,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -171,8 +182,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               child: Text(
                                 _error!,
                                 style: TextStyle(
-                                  color:
-                                      Theme.of(context).colorScheme.error,
+                                  color: Theme.of(context).colorScheme.error,
                                   fontSize: 13,
                                 ),
                               ),

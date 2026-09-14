@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show HandshakeException, HttpException;
 
 import 'package:civic_intelligence/core/errors/app_exception.dart';
 import 'package:civic_intelligence/core/network/api_client.dart';
@@ -376,6 +377,67 @@ void main() {
     });
   });
 
+  group('transport error normalization', () {
+    test('normalizes a TLS HandshakeException into a NetworkException',
+        () async {
+      final client = _ThrowingStreamClient(HandshakeException('bad cert'));
+      final api = buildApi(client);
+
+      await expectLater(
+        api.fetchMyReports(),
+        throwsA(
+          isA<NetworkException>().having(
+            (e) => e.message,
+            'message',
+            contains('Secure connection failed'),
+          ),
+        ),
+      );
+    });
+
+    test('normalizes a dart:io HttpException into a NetworkException',
+        () async {
+      final client = _ThrowingStreamClient(HttpException('broken pipe'));
+      final api = buildApi(client);
+
+      await expectLater(
+        api.fetchMyReports(),
+        throwsA(isA<NetworkException>().having(
+          (e) => e.message,
+          'message',
+          contains('Could not reach the server'),
+        )),
+      );
+    });
+
+    test('normalizes an unknown transport error into a NetworkException',
+        () async {
+      final client = _ThrowingStreamClient(StateError('weird'));
+      final api = buildApi(client);
+
+      await expectLater(
+        api.fetchMyReports(),
+        throwsA(isA<NetworkException>().having(
+          (e) => e.message,
+          'message',
+          contains('connection error'),
+        )),
+      );
+    });
+
+    test('rethrows normalized AppExceptions unchanged', () async {
+      final client = MockClient(
+        (request) async => _jsonResponse({'detail': 'boom'}, 500),
+      );
+      final api = buildApi(client);
+
+      await expectLater(
+        api.fetchMyReports(),
+        throwsA(isA<ServerException>()),
+      );
+    });
+  });
+
   group('validation errors', () {
     test('maps 400 field errors to ValidationException', () async {
       final client = MockClient(
@@ -423,4 +485,15 @@ class _NeverCompletingClient extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) => future;
+}
+
+class _ThrowingStreamClient extends http.BaseClient {
+  _ThrowingStreamClient(this.error);
+
+  final Object error;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    throw error;
+  }
 }

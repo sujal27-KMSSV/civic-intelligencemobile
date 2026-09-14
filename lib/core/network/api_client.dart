@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io'
+    show File, HandshakeException, HttpException, IOException, SocketException;
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -303,6 +304,24 @@ class ApiClient {
     } on SocketException {
       throw const NetworkException(
         message: 'Could not reach the server. Check your connection.',
+      );
+    } on HandshakeException {
+      throw const NetworkException(
+        message:
+            'Secure connection failed. Check your network or try again later.',
+      );
+    } on HttpException {
+      throw const NetworkException(
+        message: 'Could not reach the server. Check your connection.',
+      );
+    } on IOException {
+      throw const NetworkException(
+        message: 'A connection error occurred. Please try again.',
+      );
+    } catch (e) {
+      if (e is AppException) rethrow;
+      throw const NetworkException(
+        message: 'A connection error occurred. Please try again.',
       );
     }
   }

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/errors/app_exception.dart';
 import '../../core/network/api_client.dart';
 import '../../models/issue.dart';
 
@@ -20,9 +19,10 @@ final issueFeedProvider = FutureProvider<List<Issue>>((ref) {
   return ref.watch(issueFeedRepositoryProvider).fetchIssues();
 });
 
-/// Reads `GET /api/issues/` and sorts newest first. If the list endpoint is
-/// missing (HTTP 404), it degrades to the current user's own reports so the
-/// feed still renders during demos when only `GET /api/my-reports/` exists.
+/// Reads `GET /api/issues/` (the public community feed) and sorts newest first.
+///
+/// The feed is PUBLIC by design: it never falls back to the authenticated
+/// user's own reports, so private data can never leak into the community feed.
 class ApiIssueFeedRepository implements IssueFeedRepository {
   ApiIssueFeedRepository({ApiClient? client}) : _client = client ?? ApiClient();
 
@@ -30,16 +30,7 @@ class ApiIssueFeedRepository implements IssueFeedRepository {
 
   @override
   Future<List<Issue>> fetchIssues() async {
-    List<Issue> issues;
-    try {
-      issues = await _client.fetchIssues();
-    } on ServerException catch (e) {
-      if (e.statusCode == 404) {
-        issues = await _client.fetchMyReports();
-      } else {
-        rethrow;
-      }
-    }
+    final issues = await _client.fetchIssues();
     issues.sort(
       (a, b) => (b.createdAt?.millisecondsSinceEpoch ?? 0)
           .compareTo(a.createdAt?.millisecondsSinceEpoch ?? 0),

@@ -65,8 +65,8 @@ def resolve_issue(
     issue.resolved_at = timezone.now()
 
     similarity = issues_civic.image_similarity(
-        issues_civic.media_path(issue.image.name),
-        issues_civic.media_path(issue.resolution_image.name),
+        issue.image.name,
+        issue.resolution_image.name,
     )
     if similarity.get("similarity") is not None:
         issue.resolution_similarity = similarity["similarity"]

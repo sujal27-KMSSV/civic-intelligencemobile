@@ -64,28 +64,17 @@ void main() {
     expect(issues.last.id, '1042');
   });
 
-  test('falls back to my-reports when the issues endpoint is missing',
-      () async {
-    final repo = repoWith((request) {
-      if (request.url.path == '/api/issues/') {
-        return jsonResponse({'detail': 'Not found'}, 404);
-      }
-      return jsonResponse([
-        {
-          'id': 777,
-          'status': 'reported',
-          'latitude': 28.6139,
-          'longitude': 77.2090,
-          'category': 'pothole',
-          'severity': 'high',
-        },
-      ], 200);
-    });
+  test('does NOT fall back to private my-reports when the feed 404s', () async {
+    final repo = repoWith(
+      (request) => jsonResponse({'detail': 'Not found'}, 404),
+    );
 
-    final issues = await repo.fetchIssues();
-
-    expect(issues.single.id, '777');
-    expect(issues.single.analysis?.severity, 'HIGH');
+    // The public community feed must never silently degrade to the caller's
+    // own private reports; a missing feed surfaces the error instead.
+    await expectLater(
+      repo.fetchIssues(),
+      throwsA(isA<ServerException>()),
+    );
   });
 
   test('rethrows non-404 failures', () async {
