@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from django.urls import clear_url_caches, resolve
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
@@ -340,3 +342,26 @@ class AuthorityLifecycleTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class MediaServingTests(APITestCase):
+    """Uploaded media must be served even when DEBUG is off.
+
+    Django's static() helper is a no-op in production, so the URLconf adds an
+    explicit serve route when DEBUG is disabled; this test guards that route.
+    """
+
+    @override_settings(DEBUG=False)
+    def test_media_route_registered_when_debug_false(self):
+        import sys
+
+        import config.urls
+
+        sys.modules.pop(config.urls.__name__, None)
+        clear_url_caches()
+        try:
+            match = resolve("/media/issues/2026/09/14/tiny.png")
+            self.assertEqual(match.view_name, "django.views.static.serve")
+        finally:
+            sys.modules.pop(config.urls.__name__, None)
+            clear_url_caches()
