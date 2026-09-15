@@ -1,213 +1,485 @@
 # Civic Intelligence
 
-Civic Intelligence is an AI-powered platform for reporting, analyzing and managing urban infrastructure problems.
+An AI-powered civic intelligence platform that turns citizen-reported urban problems into structured, verified and prioritized actions for local authorities.
 
-The idea is simple: instead of treating every citizen complaint as an isolated ticket, the system uses the information from multiple reports to identify the actual issue, estimate its severity, detect possible duplicates and help authorities decide what needs attention first.
+## Overview
 
-The project was developed as a hackathon prototype under the **Smart Cities & Urban Innovation** theme.
+Cities generate thousands of complaints about potholes, garbage, damaged infrastructure, water leakage, broken streetlights and other civic problems. The difficult part is not only collecting these complaints. The real challenge is understanding which problems are important, where they are happening, whether multiple citizens are reporting the same issue, and what should be addressed first.
 
-## What it does
+Civic Intelligence is designed around this problem.
 
-A citizen can report an issue by providing a photo, description and location.
+Instead of treating every complaint as an isolated ticket, the platform combines citizen reports, images, location data and AI-based analysis to identify the underlying civic issue, estimate its severity, detect possible duplicate reports, identify problem hotspots and create a prioritized queue for authorities.
 
-The system then processes the report and can:
+The goal is simple:
 
-* Identify the type of civic issue
-* Estimate its severity
-* Generate an AI-based summary
-* Assign a priority score
-* Find potentially duplicate reports
-* Group reports around the same location
-* Display issues on a map
-* Provide authorities with a prioritized list of problems
-
-### Example
-
-Instead of having five separate complaints:
-
-```text
-Report #101 - Large pothole near Sector 62
-Report #107 - Road damaged near Sector 62
-Report #113 - Big pothole near the intersection
-Report #118 - Vehicles swerving around damaged road
-```
-
-the platform can recognize that these reports may refer to the same underlying problem.
-
-```text
-                 CIVIC INTELLIGENCE
-                         |
-                         v
-                  One actual issue
-                         |
-              +----------+----------+
-              |                     |
-        4 supporting reports     High priority
-```
-
-This helps reduce duplicate work and gives authorities a clearer picture of what is happening on the ground.
+> Turn scattered citizen complaints into actionable urban intelligence.
 
 ---
 
-## Main Features
+## Why This Matters
 
-### Citizen App
+Urban infrastructure problems are not merely inconveniences. Poorly maintained roads, unmanaged waste and delayed civic response can directly affect public safety, health and quality of life.
 
-* User login / guest access
-* Report a civic issue
-* Upload an image
-* Add description
-* Capture/select location
-* View submitted reports
-* View nearby issues
-* Track issue status
+According to the Ministry of Road Transport and Highways, India recorded:
 
-### AI Analysis
+* 4,80,583 road accidents in 2023
+* 1,72,890 people killed in road accidents
+* 4,62,825 people injured
 
-Submitted reports can be analyzed for:
+Potholes alone were associated with 5,840 reported road accidents, 2,161 deaths and 5,309 injuries in 2023.
 
-* Issue category
-* Severity
-* Confidence
-* Short description/summary
-* Recommended action
-* Priority
+The problem is not limited to roads.
 
-Possible categories include:
+Government data has also shown the scale of municipal solid waste generation. An official government response reported approximately 1,40,557 tonnes of urban solid waste generated per day across the listed states and Union Territories, with 42,233 tonnes per day reported as untreated in that dataset.
 
-* Potholes / road damage
-* Garbage
-* Broken streetlights
-* Water leakage
-* Drainage problems
-* Other infrastructure issues
-
-### Duplicate Detection
-
-Reports can be compared using a combination of:
-
-* Image similarity
-* Text similarity
-* Geographic distance
-
-The goal is to determine whether several reports are likely describing the same physical problem.
-
-### Authority Dashboard
-
-Authorities can view:
-
-* Total reported issues
-* Critical/high-priority issues
-* Pending and resolved issues
-* Issue categories
-* Civic hotspots
-* Individual issue details
-* Location-based reports
-* AI-generated priority information
-
-### Map & Hotspots
-
-Reports can be displayed geographically to identify areas where civic problems are concentrated.
-
-This can help move from individual complaint handling towards area-level decision making.
+These numbers demonstrate the scale of the underlying problem. Civic Intelligence focuses on improving how these problems are reported, understood and prioritized.
 
 ---
 
-## How the system works
+## The Problem
+
+Traditional civic complaint systems generally follow this pattern:
 
 ```text
 Citizen
    |
    v
-Report + Image + Location
+Complaint
    |
    v
-Backend API
+Department Queue
    |
-   +----------------------+
-   |                      |
-   v                      v
-Database              AI Analysis
-   |                      |
-   |              +-------+-------+
-   |              |       |       |
-   |             Type  Severity  Summary
-   |                      |
-   |                 Priority Score
-   |                      |
-   +----------+-----------+
-              |
-              v
-       Duplicate Detection
-              |
-              v
-       Authority Dashboard
-              |
-              v
-       Action / Resolution
+   v
+Manual Verification
+   |
+   v
+Action
+```
+
+This approach can create several problems:
+
+* Multiple citizens may report the same issue separately.
+* Authorities may receive large numbers of unstructured complaints.
+* Severity is often difficult to determine from a simple text complaint.
+* Location data is not always used intelligently.
+* High-impact problems can get buried among routine complaints.
+* Authorities have limited visibility into geographic hotspots.
+* Citizens may not know whether their complaint is actually progressing.
+
+Civic Intelligence adds an intelligence layer between reporting and action.
+
+---
+
+## Our Approach
+
+```text
+Citizen Report
+      |
+      v
+Image + Description + Location
+      |
+      v
+AI Analysis
+      |
+      +---- Issue Classification
+      |
+      +---- Severity Estimation
+      |
+      +---- Confidence Score
+      |
+      +---- Duplicate Detection
+      |
+      +---- Priority Score
+      |
+      v
+Civic Intelligence Layer
+      |
+      +---- Hotspot Detection
+      |
+      +---- Department Routing
+      |
+      +---- Priority Queue
+      |
+      v
+Authority Dashboard
+      |
+      v
+Resolution
+      |
+      v
+Citizen Update
+```
+
+The system is designed to move from simple complaint collection towards data-driven civic decision making.
+
+---
+
+## Key Features
+
+### 1. AI-Assisted Issue Reporting
+
+Citizens can submit a civic issue using:
+
+* Photograph
+* Description
+* Location
+* Issue category
+
+The system analyzes the submitted information and converts it into structured civic data.
+
+Example:
+
+```text
+Input:
+Photo + "Large pothole near the intersection"
+
+AI Output:
+Category: Road Infrastructure
+Issue: Pothole
+Severity: Critical
+Confidence: 96%
+Priority: 94/100
+Department: Roads
 ```
 
 ---
 
-## Technology Stack
+### 2. Intelligent Issue Classification
 
-### Frontend
+The system can categorize reports into areas such as:
 
-**Flutter / Dart**
+* Potholes and road damage
+* Garbage and waste
+* Broken streetlights
+* Water leakage
+* Drainage problems
+* Damaged public infrastructure
+* Traffic-related infrastructure problems
+* Other civic issues
 
-Used to build the cross-platform mobile application for citizens and authorities.
+This reduces the amount of manual classification required from authorities.
 
-### Backend
+---
 
-**Python / FastAPI**
+### 3. Severity Assessment
 
-Provides the REST API and handles communication between the mobile application, database and AI services.
+Not every complaint deserves the same response time.
 
-### Database
+The platform evaluates factors such as:
 
-**PostgreSQL**
+* Type of issue
+* Visual condition
+* Report description
+* Location
+* Number of supporting reports
+* Potential public safety impact
 
-Stores users, reports, issue status, categories, locations and other application data.
+The result is a severity and priority score that helps authorities focus on the most urgent problems first.
 
-**PostGIS**
+---
 
-Adds geospatial capabilities to PostgreSQL and is used for location-based operations such as finding nearby reports.
+### 4. Duplicate Issue Detection
 
-### AI / Machine Learning
+One of the central ideas behind Civic Intelligence is that multiple reports do not necessarily represent multiple problems.
 
-**Computer Vision**
+For example:
 
-Used for analyzing uploaded images and identifying infrastructure problems.
+```text
+Citizen A
+"Pothole near Main Road"
 
-**YOLO**
+Citizen B
+"Large road hole near the same location"
 
-Can be used for object/problem detection in images.
+Citizen C
+"Damaged road at the same intersection"
+```
 
-**OpenCV**
+Instead of creating three unrelated tickets, the system can identify them as potential reports of the same underlying issue.
 
-Used for image processing and preprocessing.
+The platform can combine:
 
-**LLM / Vision API**
+* Geographic proximity
+* Image similarity
+* Text similarity
+* Embeddings
 
-Used for tasks such as classification, summaries, recommendations and structured analysis.
+to estimate whether reports refer to the same physical problem.
 
-**CLIP / Embeddings**
+```text
+17 Citizen Reports
+        |
+        v
+Duplicate Detection
+        |
+        v
+1 Verified Civic Issue
++ 17 Supporting Reports
+```
 
-Can be used to compare images and identify visually similar reports.
+This is one of the main differentiators of the platform.
 
-**Cosine Similarity**
+---
 
-Used to measure similarity between generated embeddings.
+## 5. Civic Hotspot Detection
 
-### Maps
+Individual complaints become more useful when viewed geographically.
 
-Google Maps / Mapbox / OpenStreetMap can be used for displaying report locations and civic hotspots.
+The platform can aggregate reports to identify areas experiencing unusually high concentrations of civic problems.
 
-### Storage
+Example:
 
-Cloud storage such as Cloudinary or Supabase Storage can be used for uploaded images.
+```text
+Sector 62
 
-### Development
+47 reports
+
+31 Road Issues
+9 Garbage Issues
+7 Streetlight Issues
+
+High Priority Area
+```
+
+This allows authorities to think beyond individual complaints and identify areas requiring broader intervention.
+
+---
+
+## 6. Intelligent Department Routing
+
+Once an issue has been classified, it can be routed to the appropriate department.
+
+Example:
+
+```text
+Pothole
+    |
+    v
+Roads Department
+
+Garbage accumulation
+    |
+    v
+Sanitation Department
+
+Broken streetlight
+    |
+    v
+Electrical Department
+
+Water leakage
+    |
+    v
+Water Department
+```
+
+This reduces unnecessary manual sorting and creates a more structured workflow.
+
+---
+
+## 7. Authority Dashboard
+
+Authorities receive a centralized view of civic problems.
+
+The dashboard can display:
+
+* Total reports
+* Critical issues
+* Pending issues
+* Resolved issues
+* AI-prioritized issues
+* Civic hotspots
+* Issue categories
+* Geographic distribution
+* Duplicate reports
+* Resolution status
+
+Instead of simply asking:
+
+> "How many complaints do we have?"
+
+the system helps answer:
+
+> "Which problems matter most, where are they concentrated, and what should we address first?"
+
+---
+
+## 8. Resolution Verification
+
+A future extension of the system is automated resolution verification.
+
+For example:
+
+```text
+Before
+
+Damaged road
+     |
+     v
+Repair requested
+     |
+     v
+Repair completed
+     |
+     v
+After image
+     |
+     v
+AI comparison
+     |
+     v
+Resolution verified
+```
+
+This creates a closed feedback loop rather than ending the process when an authority marks a ticket as completed.
+
+---
+
+# What Makes Civic Intelligence Different?
+
+Most civic platforms focus primarily on complaint collection.
+
+Civic Intelligence focuses on what happens after the complaint is created.
+
+### Traditional Approach
+
+```text
+Report
+  |
+  v
+Ticket
+  |
+  v
+Department
+  |
+  v
+Resolution
+```
+
+### Civic Intelligence
+
+```text
+Report
+  |
+  v
+Understand
+  |
+  v
+Verify
+  |
+  v
+Group
+  |
+  v
+Prioritize
+  |
+  v
+Route
+  |
+  v
+Resolve
+  |
+  v
+Verify Resolution
+```
+
+The core USP is therefore:
+
+> **We do not just collect civic complaints. We convert them into prioritized, location-aware and actionable intelligence.**
+
+---
+
+# Core USP
+
+## From Complaint Management to Civic Intelligence
+
+The platform combines four types of information that are often handled separately:
+
+```text
+Citizen Reports
+       +
+Visual Evidence
+       +
+Geospatial Information
+       +
+AI Analysis
+       |
+       v
+Civic Intelligence
+```
+
+This creates a system capable of understanding the relationship between individual reports rather than treating every report as an isolated ticket.
+
+The most important idea is the distinction between:
+
+**Reports** and **Underlying Problems**.
+
+Ten reports in one location may represent one major civic issue, while ten reports spread across a city may represent ten different problems.
+
+Civic Intelligence attempts to identify that difference automatically.
+
+---
+
+# Technology Stack
+
+## Mobile Application
+
+* Flutter
+* Dart
+
+Flutter provides a single codebase for the citizen-facing and authority-facing mobile experience.
+
+## Backend
+
+* Python
+* FastAPI
+* REST APIs
+
+FastAPI handles communication between the applications, database and intelligence services.
+
+## Database
+
+* PostgreSQL
+* PostGIS
+
+PostgreSQL stores structured application data while PostGIS provides geographic querying and location-based analysis.
+
+## Artificial Intelligence
+
+* Computer Vision
+* YOLO
+* OpenCV
+* Vision-capable AI models
+* Large Language Models
+* Embeddings
+* Cosine similarity
+
+These components can be used for issue classification, severity estimation, text understanding, visual analysis and duplicate detection.
+
+## Geospatial Layer
+
+* Google Maps / Mapbox
+* OpenStreetMap where appropriate
+* PostGIS
+
+Used for report locations, issue mapping, hotspot detection and geographic proximity analysis.
+
+## Storage
+
+* Cloudinary / Supabase Storage
+
+Used for citizen-submitted images and supporting media.
+
+## Analytics
+
+* Pandas
+* NumPy
+* Plotly
+* Scikit-learn
+
+Used for civic data analysis, trends, prioritization and future predictive capabilities.
+
+## Development
 
 * Git
 * GitHub
@@ -218,159 +490,233 @@ Cloud storage such as Cloudinary or Supabase Storage can be used for uploaded im
 
 ---
 
-## Project Structure
-
-The exact structure may change during development, but the project is organized roughly around the following components:
+# System Architecture
 
 ```text
-civic-intelligence/
-│
-├── mobile/
-│   └── Flutter application
-│
-├── backend/
-│   ├── API
-│   ├── models
-│   ├── services
-│   └── AI integration
-│
-├── ai/
-│   ├── image analysis
-│   ├── similarity
-│   └── prioritization
-│
-├── docs/
-│   └── project documentation
-│
-└── README.md
+                   CITIZEN
+                      |
+                      v
+               Flutter Application
+                      |
+                      v
+                  REST API
+                      |
+                      v
+                  FastAPI
+                      |
+       +--------------+--------------+
+       |              |              |
+       v              v              v
+ PostgreSQL       AI Engine       Image Storage
+ + PostGIS            |              |
+       |              |              |
+       |       +------+-------+       |
+       |       |      |       |       |
+       |      CV     LLM   Embeddings |
+       |       |      |       |       |
+       |       +------+-------+       |
+       |              |              |
+       +--------------+--------------+
+                      |
+                      v
+             Civic Intelligence
+                      |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+   Prioritization  Duplicates   Hotspots
+        |             |             |
+        +-------------+-------------+
+                      |
+                      v
+              Authority Dashboard
+                      |
+                      v
+                  Resolution
 ```
 
 ---
 
-## Running the Project
+# Example End-to-End Scenario
 
-### Requirements
+A citizen notices a large pothole.
 
-Make sure you have the following installed:
+### Step 1
 
-* Flutter
-* Dart
-* Python 3.x
-* Git
-* Android Studio (for Android development)
-* PostgreSQL, if running the database locally
+The citizen opens the app and uploads a photograph.
 
-### Frontend
+### Step 2
 
-```bash
-cd mobile
-flutter pub get
-flutter run
-```
+The app captures the location and description.
 
-### Backend
+### Step 3
 
-```bash
-cd backend
-
-python -m venv venv
-```
-
-Activate the virtual environment and install the dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Start the API:
-
-```bash
-uvicorn main:app --reload
-```
-
-The exact commands may vary depending on the current project structure.
-
----
-
-## API Overview
-
-Some of the main API operations include:
+The AI analyzes the report.
 
 ```text
-POST   /issues
-GET    /issues
-GET    /issues/{id}
-PATCH  /issues/{id}
-
-POST   /ai/analyze
+Category: Road Damage
+Type: Pothole
+Severity: High
+Confidence: 96%
 ```
 
-The API is responsible for receiving reports, retrieving issue data, updating status and communicating with the AI layer.
+### Step 4
 
----
+The system checks nearby reports.
 
-## Priority System
+It discovers that several citizens have reported a similar problem within the same geographic area.
 
-The platform can combine several factors to determine how urgently an issue should be handled.
+### Step 5
 
-For example:
+The reports are grouped as a potential duplicate cluster.
 
 ```text
-Severity
-   +
-Number of reports
-   +
-Location
-   +
-Duplicate/supporting reports
-   +
-Potential impact
-        |
-        v
-  Priority Score
+1 underlying issue
+17 supporting reports
 ```
 
-A critical road hazard with several supporting reports can therefore be placed ahead of a low-impact issue with only one report.
+### Step 6
+
+The system calculates a priority score.
+
+```text
+Priority: 94/100
+```
+
+### Step 7
+
+The issue is routed to the appropriate authority.
+
+### Step 8
+
+The authority sees the issue on its dashboard and map.
+
+### Step 9
+
+After repair, the issue can be marked for resolution verification.
+
+This turns a single citizen observation into a structured operational workflow.
 
 ---
 
-## Future Scope
+# Potential Impact
 
-The current project is a hackathon-focused MVP. Possible future improvements include:
+The platform is designed to help cities:
 
-* Real-time authority notifications
-* More infrastructure categories
-* Better image-based detection
-* Historical trend analysis
-* Predictive identification of civic hotspots
-* Integration with municipal systems
-* Automatic department routing
-* Before/after verification of completed work
-* City-wide analytics
-* Multi-city deployment
-* IoT and CCTV data integration
+* Identify high-priority infrastructure problems faster.
+* Reduce duplicate complaint handling.
+* Improve allocation of municipal resources.
+* Identify geographic civic hotspots.
+* Improve visibility for authorities.
+* Create better evidence for infrastructure planning.
+* Provide citizens with greater visibility into the status of their reports.
+* Build a historical dataset of recurring urban problems.
+* Move towards predictive rather than purely reactive civic management.
 
-The longer-term goal is to move from simply collecting complaints to providing authorities with useful, continuously updated information about the condition of a city.
+The platform does not claim that AI alone can eliminate road accidents, garbage or infrastructure problems. Its role is to improve the information and prioritization layer that authorities use to respond to them.
 
 ---
 
-## Project Status
+# Roadmap
 
-**Hackathon Prototype / MVP**
+## Current MVP
 
-The project is currently focused on demonstrating the core reporting → AI analysis → prioritization → authority workflow.
+* Citizen issue reporting
+* Image and location capture
+* AI-assisted classification
+* Severity estimation
+* Priority scoring
+* Duplicate detection
+* Issue mapping
+* Authority dashboard
+* Issue status tracking
 
-Some components may use mock data or external AI services for demonstration purposes.
+## Next Stage
+
+* Automated resolution verification
+* More advanced hotspot analysis
+* Department performance analytics
+* Citizen notifications
+* Historical issue trends
+* Predictive maintenance
+
+## Long-Term Vision
+
+Civic Intelligence can evolve from a reporting application into a city-level intelligence layer.
+
+```text
+Citizen Reports
+       |
+       v
+Real-Time Civic Data
+       |
+       v
+AI + Geospatial Intelligence
+       |
+       v
+City-Wide Problem Detection
+       |
+       v
+Predictive Urban Management
+```
+
+The long-term objective is to help cities identify infrastructure problems before they become larger and more expensive problems.
 
 ---
 
-## Team
+# Project Goals
 
-Developed for a hackathon under the **Smart Cities & Urban Innovation** theme.
+Civic Intelligence was built around three simple questions:
+
+1. How can we make it easier for citizens to report real problems?
+2. How can AI turn thousands of reports into useful information?
+3. How can authorities know what needs attention first?
+
+The project attempts to answer all three through a single connected platform.
 
 ---
 
-## License
+# Why Now?
 
-This project is currently intended for educational and hackathon purposes.
+Cities are generating increasing amounts of digital information through smartphones, cameras, maps and online services.
+
+The opportunity is no longer simply to collect more complaints.
+
+The opportunity is to make sense of the information that already exists.
+
+Civic Intelligence is an attempt to build that missing intelligence layer.
+
+---
+
+# Disclaimer
+
+Statistics mentioned in this repository are sourced from government publications and are used to establish the scale of the civic problems being addressed. They should not be interpreted as claims that all such incidents can be prevented by this platform.
+
+The project is a hackathon-stage prototype and is intended to demonstrate the concept and technical feasibility of AI-assisted civic intelligence.
+
+---
+
+# Sources
+
+* Ministry of Road Transport and Highways, Government of India — Road Accidents in India 2023
+* Ministry of Road Transport and Highways — Road Accident statistics and road-feature data
+* Central Pollution Control Board — Municipal Solid Waste reports
+* Government of India / Press Information Bureau — Urban solid waste statistics
+
+---
+
+# Project Status
+
+Hackathon MVP
+
+The platform is currently being developed as a proof of concept demonstrating the core workflow from citizen reporting to AI-assisted civic prioritization and authority action.
+
+---
+
+## Vision
+
+**Report less. Understand more. Act faster.**
+
+Civic Intelligence aims to make every citizen report more useful by transforming isolated complaints into a connected picture of what is happening across a city.
+
 
