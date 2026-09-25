@@ -48,7 +48,10 @@ class _ReportResultScreenState extends ConsumerState<ReportResultScreen> {
     final submission = ref.watch(reportSubmissionProvider);
 
     return PopScope(
-      canPop: submission.phase == SubmitPhase.failure,
+      // During submitting and failure the user may back out to the review
+      // form; once a report is confirmed there is nothing to go back to (the
+      // success screen's own buttons exit the flow).
+      canPop: submission.phase != SubmitPhase.success,
       child: switch (submission.phase) {
         SubmitPhase.success => _ResultSuccess(
             issue: submission.issue!,
@@ -106,6 +109,14 @@ class _ResultLoadingState extends State<_ResultLoading> {
       appBar: AppBar(
         title: const Text('Report Submitted'),
         automaticallyImplyLeading: false,
+        // Escape hatch for a slow / stalled submission: you can head back to
+        // the review form while the submit keeps running in the background
+        // (if the report lands, your My Reports will show it).
+        leading: IconButton(
+          tooltip: 'Back to review',
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: SafeArea(
         child: Center(

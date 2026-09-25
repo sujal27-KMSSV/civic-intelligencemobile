@@ -332,6 +332,108 @@ def run_analysis(issue) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Cluster bookkeeping for report deletion. Deleting a report must never leave
+# stale duplicate_count / duplicate_of state, so the surviving cluster is
+# recomputed before the row is dropped (kept in civic so the invariants live
+# next to the analysis engine that creates them).
+# --------------------------------------------------------------------------
+
+def _duplicate_block(
+    *,
+    is_duplicate: bool,
+    root_id: int | None,
+    member_ids: list[int],
+    duplicate_count: int,
+    similarity: float = 0.0,
+) -> dict:
+    """Rebuild the ``analysis["duplicate"]`` block for a surviving issue."""
+    return {
+        "is_duplicate": is_duplicate,
+        "similarity_score": similarity,
+        "root_id": root_id,
+        "cluster_members": sorted(set(member_ids)),
+        "duplicate_count": duplicate_count,
+    }
+
+
+def recompute_root_after_child_removal(root: "Issue") -> None:
+    """Fix the surviving root after one of its duplicate reports was deleted.
+
+    ``root`` must still exist; the deleted child row is already gone so
+    ``root.duplicates`` reflects the survivors.
+    """
+    members = list(root.duplicates.order_by("created_at"))
+    total = len(members) + 1  # root + remaining children
+
+    if total <= 1:
+        root.duplicate = False
+        root.duplicate_count = 0
+    else:
+        root.duplicate = True
+        root.duplicate_count = total
+        root.severity, _ = score_severity(
+            root.category, root.description, total
+        )
+
+    member_ids = [root.pk, *(m.pk for m in members)]
+    analysis = dict(root.analysis or {})
+    analysis["duplicate"] = _duplicate_block(
+        is_duplicate=False,
+        root_id=None,
+        member_ids=member_ids,
+        duplicate_count=root.duplicate_count,
+    )
+    root.analysis = analysis
+    root.save(update_fields=[
+        "duplicate",
+        "duplicate_count",
+        "severity",
+        "analysis",
+        "updated_at",
+    ])
+
+
+def reroot_cluster_after_root_removal(children: list["Issue"]) -> None:
+    """Re-root the orphans left behind after a root report was deleted.
+
+    ``children`` is the deleted root's former duplicates (newest-safe order is
+    irrelevant here; the oldest becomes the new root). Their ``duplicate_of``
+    has already been NULL'ed by on_delete=SET_NULL. The cluster keeps one root
+    and consistent counts/severity; nothing references the deleted row.
+    """
+    if not children:
+        return
+    new_root = min(children, key=lambda c: c.created_at)
+    ids = [c.pk for c in children]
+
+    for child in children:
+        is_root = child.pk == new_root.pk
+        child.duplicate = not is_root
+        child.duplicate_of = None if is_root else new_root
+        child.duplicate_count = len(children)
+        child.severity, _ = score_severity(
+            child.category, child.description, len(children)
+        )
+        analysis = dict(child.analysis or {})
+        analysis["duplicate"] = _duplicate_block(
+            is_duplicate=not is_root,
+            root_id=None if is_root else new_root.pk,
+            member_ids=ids,
+            duplicate_count=child.duplicate_count,
+            similarity=0.0 if is_root else (child.confidence or 0.0),
+        )
+        child.analysis = analysis
+        child.save(update_fields=[
+            "duplicate",
+            "duplicate_of",
+            "duplicate_count",
+            "severity",
+            "analysis",
+            "updated_at",
+        ])
+
+
+# --------------------------------------------------------------------------
 # Resolution verification (honest, heuristic image comparison).
 # --------------------------------------------------------------------------
 

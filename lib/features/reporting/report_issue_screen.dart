@@ -90,7 +90,7 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
             children: [
               /// Scrollable content with a bottom offset for the action bar.
               ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 150),
                 children: [
                   _StepIndicator(
                     firstDone: draft.category != null,
@@ -402,7 +402,9 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
     final messenger = ScaffoldMessenger.of(context);
     switch (result.status) {
       case MediaPickStatus.success:
-        ref.read(reportDraftProvider.notifier).setImage(result.file!);
+        ref
+            .read(reportDraftProvider.notifier)
+            .setImage(result.file!, imageSource: result.source);
         setState(() => _needsSettings = false);
         messenger.showSnackBar(
           const SnackBar(content: Text('Photo captured successfully')),

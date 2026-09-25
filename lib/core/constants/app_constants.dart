@@ -7,4 +7,6 @@ class AppConstants {
   static const String refreshTokenKey = 'refresh_token';
   static const String userIdKey = 'user_id';
   static const String emailKey = 'user_email';
+  static const String firstNameKey = 'user_first_name';
+  static const String lastNameKey = 'user_last_name';
 }

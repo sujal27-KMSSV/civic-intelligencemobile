@@ -5,6 +5,7 @@ class ReportDraft {
   const ReportDraft({
     this.category,
     this.image,
+    this.imageSource,
     this.latitude,
     this.longitude,
     this.accuracyInMeters,
@@ -16,6 +17,9 @@ class ReportDraft {
 
   /// Captured photo (local file) ready for upload.
   final File? image;
+
+  /// Provenance of [image]: "camera" (captured on-device) or "gallery".
+  final String? imageSource;
   final double? latitude;
   final double? longitude;
   final double? accuracyInMeters;
@@ -29,6 +33,7 @@ class ReportDraft {
   ReportDraft copyWith({
     String? category,
     File? image,
+    String? imageSource,
     double? latitude,
     double? longitude,
     double? accuracyInMeters,
@@ -41,6 +46,7 @@ class ReportDraft {
     return ReportDraft(
       category: category ?? this.category,
       image: clearImage ? null : (image ?? this.image),
+      imageSource: clearImage ? null : (imageSource ?? this.imageSource),
       latitude: clearLocation ? null : (latitude ?? this.latitude),
       longitude: clearLocation ? null : (longitude ?? this.longitude),
       accuracyInMeters:

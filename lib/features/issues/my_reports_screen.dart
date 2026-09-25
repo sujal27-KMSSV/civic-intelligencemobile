@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/errors/app_exception.dart';
 import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/issue_card.dart';
+import '../../core/widgets/report_edit_dialog.dart';
 import '../../models/issue.dart';
+import '../feed/issue_feed_repository.dart';
+import '../reporting/report_repository.dart';
 import 'my_reports_provider.dart';
 
 class MyReportsScreen extends ConsumerStatefulWidget {
@@ -103,8 +107,42 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   itemCount: issues.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      IssueCard(issue: issues[index]),
+                  itemBuilder: (context, index) {
+                    final issue = issues[index];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        IssueCard(issue: issue),
+                        if (issue.canEdit == true || issue.canDelete == true)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (issue.canEdit == true)
+                                  TextButton.icon(
+                                    onPressed: () => _confirmEdit(issue),
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18),
+                                    label: const Text('Edit'),
+                                  ),
+                                if (issue.canDelete == true)
+                                  TextButton.icon(
+                                    onPressed: () => _confirmDelete(issue),
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18),
+                                    label: const Text('Delete'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
         ),
       ],
@@ -124,6 +162,60 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
       title: 'Nothing here yet',
       message: 'Try a different filter or submit a new report.',
     );
+  }
+
+  Future<void> _confirmEdit(Issue issue) async {
+    final updated = await showReportEditDialog(
+      context,
+      repository: ref.read(reportRepositoryProvider),
+      issue: issue,
+    );
+    if (updated == null || !mounted) return;
+    ref.invalidate(myReportsProvider);
+    ref.invalidate(issueFeedProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Report updated.')),
+    );
+  }
+
+  Future<void> _confirmDelete(Issue issue) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this report?'),
+        content: Text(
+          '${issue.id} will be removed from the map and feed immediately. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _delete(issue);
+  }
+
+  Future<void> _delete(Issue issue) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(reportRepositoryProvider).deleteIssue(issue.id);
+      ref.invalidate(myReportsProvider);
+      messenger.showSnackBar(const SnackBar(content: Text('Report deleted.')));
+    } on AppException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not delete the report. Try again.')),
+      );
+    }
   }
 
   String _labelFor(IssueStatus status) {

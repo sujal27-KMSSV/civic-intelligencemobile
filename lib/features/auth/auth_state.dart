@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_client.dart';
@@ -15,6 +16,23 @@ final authStorageProvider = Provider<AuthStorage>(
   (_) => const SecureAuthStorage(),
 );
 
+/// Builds the 401 callback that signs an expired session out. The side-effect
+/// closures are injected so the production provider (a `Ref`) and the unit
+/// tests (a `ProviderContainer`) can wire the exact same logic.
+@visibleForTesting
+void Function() buildUnauthorizedCallback({
+  required void Function(String?) setNotice,
+  required void Function() logout,
+}) {
+  return () {
+    // Explain the sign-out to the user instead of silently dropping them on
+    // the login form (the banner is shown by LoginScreen and cleared on the
+    // next sign-in attempt).
+    setNotice('Your session has expired. Please sign in again to continue.');
+    logout();
+  };
+}
+
 /// The shared HTTP client.  Wires the 401 callback lazily so there is no
 /// circular dependency with [authProvider].
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -23,7 +41,10 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   // Auth layer hooks into 401 responses to trigger automatic logout.
   // `ref.read` is used deliberately: the dependency is resolved lazily only
   // when a 401 actually arrives, not at provider-creation time.
-  client.onUnauthorized = () => ref.read(authProvider.notifier).logout();
+  client.onUnauthorized = buildUnauthorizedCallback(
+    setNotice: (message) => ref.read(authNoticeProvider.notifier).state = message,
+    logout: () => ref.read(authProvider.notifier).logout(),
+  );
 
   return client;
 });
@@ -72,11 +93,14 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   /// caller can display the error – the [authProvider] state will hold the
   /// [AsyncError] as well.
   ///
-  /// The state is left untouched while the request is in flight: setting
-  /// `AsyncLoading` here would make the router (which recreates itself from
-  /// [authProvider]) tear down the login/register form mid-request and the
-  /// real error would never be visible. Each screen shows its own spinner.
+  /// The state is reset to "unknown" before the request goes out (NOT
+  /// `AsyncLoading`) so a stale error from a previous attempt is cleared while
+  /// keeping the login/register form on screen and its own spinner active
+  /// (setting `AsyncLoading` here would tear the form down mid-request and the
+  /// real error would never be visible).
   Future<void> login(String email, String password) async {
+    ref.read(authNoticeProvider.notifier).state = null;
+    state = const AsyncData(AuthState.unknown());
     try {
       final repo = ref.read(authRepositoryProvider);
       final response = await repo.login(LoginRequest(
@@ -91,6 +115,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
   /// Registers a new account and signs in automatically.
   Future<void> register(RegisterRequest request) async {
+    ref.read(authNoticeProvider.notifier).state = null;
+    state = const AsyncData(AuthState.unknown());
     try {
       final repo = ref.read(authRepositoryProvider);
       final response = await repo.register(request);
@@ -108,7 +134,8 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   }
 }
 
-/// The single source of truth for whether the user is logged in.
+/// Establishes the authenticated user for routing. The single source of truth
+/// for whether the user is logged in.
 ///
 /// - `AsyncLoading` → session being restored (splash screen).
 /// - `AsyncData(AuthState.authenticated)` → user is signed in.
@@ -117,3 +144,11 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 ///   extract the error for display).
 final authProvider =
     AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+
+/// Human-readable reason the user was signed out without an explicit logout.
+///
+/// Set by the networking layer when the backend answers an authenticated
+/// request with HTTP 401 (stale/revoked token). The login screen shows it as a
+/// banner instead of silently dropping the user on an empty form. Cleared on
+/// the next successful (or attempted) sign-in.
+final authNoticeProvider = StateProvider<String?>((_) => null);

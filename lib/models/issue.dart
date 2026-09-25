@@ -39,6 +39,12 @@ class Issue {
   final DateTime? updatedAt;
   final AiAnalysis? analysis;
 
+  /// Server-authoritative flags: whether the current user may delete/edit this
+  /// report right now. The backend derives them from its own clock and the
+  /// report's permitted lifecycle, so the app never needs device-time math.
+  final bool? canDelete;
+  final bool? canEdit;
+
   const Issue({
     required this.id,
     this.description,
@@ -50,6 +56,8 @@ class Issue {
     this.createdAt,
     this.updatedAt,
     this.analysis,
+    this.canDelete,
+    this.canEdit,
   });
 
   factory Issue.fromJson(Map<String, dynamic> json) {
@@ -70,6 +78,8 @@ class Issue {
       analysis: json['analysis'] != null
           ? AiAnalysis.fromJson(json['analysis'] as Map<String, dynamic>)
           : null,
+      canDelete: json['can_delete'] as bool?,
+      canEdit: json['can_edit'] as bool?,
     );
   }
 
@@ -142,6 +152,8 @@ class Issue {
           ? DateTime.tryParse(json['updated_at'] as String)
           : null,
       analysis: analysis,
+      canDelete: json['can_delete'] as bool?,
+      canEdit: json['can_edit'] as bool?,
     );
   }
 

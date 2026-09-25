@@ -14,6 +14,8 @@ abstract class AuthStorage {
   Future<String?> readTokenScheme();
   Future<String?> readUserId();
   Future<String?> readUserEmail();
+  Future<String?> readUserFirstName();
+  Future<String?> readUserLastName();
 
   Future<void> saveSession({
     required String token,
@@ -21,6 +23,8 @@ abstract class AuthStorage {
     String? refreshToken,
     String? userId,
     String? email,
+    String? firstName,
+    String? lastName,
   });
 
   Future<void> clear();
@@ -83,12 +87,20 @@ class SecureAuthStorage implements AuthStorage {
   Future<String?> readUserEmail() => _read(AppConstants.emailKey);
 
   @override
+  Future<String?> readUserFirstName() => _read(AppConstants.firstNameKey);
+
+  @override
+  Future<String?> readUserLastName() => _read(AppConstants.lastNameKey);
+
+  @override
   Future<void> saveSession({
     required String token,
     String? tokenScheme,
     String? refreshToken,
     String? userId,
     String? email,
+    String? firstName,
+    String? lastName,
   }) async {
     await _write(AppConstants.tokenKey, token);
     if (tokenScheme != null) {
@@ -103,6 +115,12 @@ class SecureAuthStorage implements AuthStorage {
     if (email != null) {
       await _write(AppConstants.emailKey, email);
     }
+    if (firstName != null) {
+      await _write(AppConstants.firstNameKey, firstName);
+    }
+    if (lastName != null) {
+      await _write(AppConstants.lastNameKey, lastName);
+    }
   }
 
   @override
@@ -112,6 +130,8 @@ class SecureAuthStorage implements AuthStorage {
     await _delete(AppConstants.refreshTokenKey);
     await _delete(AppConstants.userIdKey);
     await _delete(AppConstants.emailKey);
+    await _delete(AppConstants.firstNameKey);
+    await _delete(AppConstants.lastNameKey);
   }
 }
 

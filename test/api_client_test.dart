@@ -190,6 +190,7 @@ void main() {
         latitude: 1,
         longitude: 2,
         timeout: const Duration(milliseconds: 50),
+        retryTimeout: const Duration(milliseconds: 50),
       ),
       throwsA(
         isA<NetworkException>().having(
@@ -199,6 +200,42 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('submitIssue retries a dropped connection and succeeds on the retry',
+      () async {
+    final file = photoFile();
+    var attempts = 0;
+    final client = MockClient((request) async {
+      attempts++;
+      if (attempts == 1) throw http.ClientException('Connection reset by peer');
+      return _jsonResponse({
+        'id': 42,
+        'status': 'reported',
+        'category': 'pothole',
+        'severity': 'LOW',
+        'confidence': 0.9,
+        'duplicate': false,
+        'duplicate_count': 0,
+        'department': 'PWD',
+      }, 201);
+    });
+
+    final api = ApiClient(
+      client: client,
+      authStorage: InMemoryAuthStorage(),
+    );
+
+    final issue = await api.submitIssue(
+      image: file,
+      latitude: 1,
+      longitude: 2,
+      clientRequestId: 'ci-duplicate-safe',
+      timeout: const Duration(seconds: 5),
+    );
+
+    expect(attempts, 2);
+    expect(issue.id, '42');
   });
 
   test('fetchMyReports parses a list of flat issue objects', () async {
@@ -471,6 +508,52 @@ void main() {
             (e) => e.message,
             'message',
             'Invalid value',
+          ),
+        ),
+      );
+    });
+  });
+
+  group('deleteIssue', () {
+    test('sends an authenticated DELETE and treats 204 as success', () async {
+      final storage = InMemoryAuthStorage();
+      await storage.saveSession(
+        token: 'secret-token',
+        userId: '1',
+        email: 'a@b.com',
+      );
+
+      late http.Request captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return http.Response('', 204);
+      });
+
+      final api = buildApi(client, storage: storage);
+      await api.deleteIssue('1042');
+
+      expect(captured.method, 'DELETE');
+      expect(captured.url.path, '/api/issues/1042/');
+      expect(captured.headers['Authorization'], 'Token secret-token');
+    });
+
+    test('surfaces a 403 window rejection as ServerException', () async {
+      final client = MockClient(
+        (request) async => _jsonResponse(
+          {'detail': 'Reports can only be deleted within 10 minutes '
+              'of submission.'},
+          403,
+        ),
+      );
+
+      final api = buildApi(client);
+      await expectLater(
+        api.deleteIssue('1042'),
+        throwsA(
+          isA<ServerException>().having(
+            (e) => e.message,
+            'message',
+            contains('10 minutes of submission'),
           ),
         ),
       );

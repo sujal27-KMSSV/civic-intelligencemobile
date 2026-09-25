@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/errors/app_exception.dart';
@@ -37,6 +39,14 @@ final reportSubmissionProvider = NotifierProvider<ReportSubmissionNotifier,
     ReportSubmissionState>(ReportSubmissionNotifier.new);
 
 class ReportSubmissionNotifier extends Notifier<ReportSubmissionState> {
+  /// Stable id for the current report "lifetime". Generated once when the first
+  /// submit attempt starts and REUSED on every retry, so a report that was
+  /// actually saved by the backend but whose response was lost (timeout/mobile
+  /// network drop) is not double-created when the user taps Retry.
+  ///
+  /// Cleared after a confirmed success; the next report gets a fresh id.
+  String? _requestId;
+
   @override
   ReportSubmissionState build() => const ReportSubmissionState.idle();
 
@@ -52,8 +62,13 @@ class ReportSubmissionNotifier extends Notifier<ReportSubmissionState> {
       return;
     }
 
+    _requestId ??= _newRequestId();
+
     try {
-      final issue = await ref.read(reportRepositoryProvider).submitReport(draft);
+      final issue = await ref
+          .read(reportRepositoryProvider)
+          .submitReport(draft, clientRequestId: _requestId);
+      _requestId = null;
       ref
           .read(notificationServiceProvider)
           .notifyIssueSubmitted(issue);
@@ -70,5 +85,20 @@ class ReportSubmissionNotifier extends Notifier<ReportSubmissionState> {
     }
   }
 
-  void reset() => state = const ReportSubmissionState.idle();
+  /// A fresh opaque id for one report attempt. High-resolution timestamp +
+  /// random entropy; treated by the backend as an opaque string.
+  String _newRequestId() {
+    final now = DateTime.now();
+    final micros = now.microsecondsSinceEpoch;
+    final rand = Random().nextInt(0x7fffffff);
+    return 'ci-$micros-$rand';
+  }
+
+  /// Clears the current attempt. "Try Again" does NOT clear it (same id →
+  /// backend de-duplicates a retry that already landed); only this explicit
+  /// reset (e.g. "Back to Review", possibly after editing) starts a fresh id.
+  void reset() {
+    _requestId = null;
+    state = const ReportSubmissionState.idle();
+  }
 }

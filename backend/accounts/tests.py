@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
@@ -6,7 +7,21 @@ from rest_framework.test import APITestCase
 User = get_user_model()
 
 
-class AuthApiTests(APITestCase):
+class _AuthCacheIsolationMixin:
+    """Flush the throttle budget before every test.
+
+    The auth scope is per-IP (10/minute) and LocMemCache is not cleared
+    between test methods, so without this the first ten auth calls across the
+    whole module would silently bank the entire budget for the rest of the
+    suite.
+    """
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+
+class AuthApiTests(_AuthCacheIsolationMixin, APITestCase):
     def _register_payload(self, **overrides):
         payload = {
             "first_name": "Jane",
@@ -137,3 +152,37 @@ class AuthApiTests(APITestCase):
     def test_register_accepts_strong_password(self):
         response = self._register_password("Grid Fix@2026x")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class AuthRateLimitTests(_AuthCacheIsolationMixin, APITestCase):
+    """Login/register share a per-IP 'auth' scope (10 requests per minute)."""
+
+    def setUp(self):
+        # Run the mixin first: it flushes the throttle cache so this burst is
+        # measured from zero.
+        _AuthCacheIsolationMixin.setUp(self)
+        self.payload = {
+            "email": "ratelimit@example.com",
+            "password": "SafeCivic#123",
+        }
+        User.objects.create_user(
+            email=self.payload["email"], password=self.payload["password"]
+        )
+
+    def _login(self):
+        return self.client.post(
+            "/api/auth/login/", self.payload, format="json"
+        )
+
+    def test_login_throttled_after_ten_attempts(self):
+        for _ in range(10):
+            response = self._login()
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        throttled = self._login()
+        self.assertEqual(
+            throttled.status_code, status.HTTP_429_TOO_MANY_REQUESTS
+        )
+        self.assertIn(
+            "request was throttled", throttled.json()["detail"].lower()
+        )

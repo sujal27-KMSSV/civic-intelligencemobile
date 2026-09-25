@@ -140,6 +140,12 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Auth endpoints (see accounts.throttles.AuthRateThrottle): the only
+        # anonymous, high-value attack surface. 10/minute per IP is generous
+        # for a human but blocks stuffing / mass registration.
+        "auth": os.getenv("AUTH_THROTTLE_RATE", "10/min"),
+    },
 }
 
 # CORS: locked-down for production; open only where explicitly configured.

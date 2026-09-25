@@ -33,12 +33,37 @@ class Issue(models.Model):
         RESOLVED = "resolved", "Resolved"
         REJECTED = "rejected", "Rejected"
 
+    class ImageSource(models.TextChoices):
+        CAMERA = "camera", "Camera"
+        GALLERY = "gallery", "Gallery"
+
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="issues",
     )
     image = models.ImageField(upload_to="issues/%Y/%m/%d/")
+    # Client-generated idempotency key: a mobile client that is unsure whether
+    # its submission landed (timeout/lost response) can re-post the SAME id and
+    # get back the original report instead of creating a duplicate. Opaque,
+    # nullable, unique per reporter.
+    client_request_id = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        default=None,
+        db_index=True,
+        help_text="Opaque client-provided idempotency key, unique per reporter.",
+    )
+    # Provenance: where the attached photo came from (camera capture or
+    # gallery selection). Blank for legacy reports created before this field.
+    image_source = models.CharField(
+        max_length=16,
+        choices=ImageSource.choices,
+        blank=True,
+        default="",
+        help_text="Whether the photo was captured on-device or picked from the gallery.",
+    )
     description = models.TextField(blank=True, default="")
     address = models.CharField(max_length=255, blank=True, default="")
 
@@ -94,6 +119,16 @@ class Issue(models.Model):
             models.Index(fields=["category"]),
             models.Index(fields=["status"]),
             models.Index(fields=["reporter", "created_at"]),
+        ]
+        constraints = [
+            # One idempotency key per reporter. The condition keeps NULLs (the
+            # normal case — most clients send no key) exempt, since Postgres
+            # unique constraints would otherwise treat every NULL as equal.
+            models.UniqueConstraint(
+                fields=["reporter", "client_request_id"],
+                condition=~models.Q(client_request_id__isnull=True),
+                name="unique_reporter_request_id",
+            ),
         ]
 
     def __str__(self):

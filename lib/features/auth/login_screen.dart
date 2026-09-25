@@ -50,6 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _error = _friendlyMessage(state.error!);
       });
     } else if (mounted) {
+      ref.read(authNoticeProvider.notifier).state = null;
       context.go('/');
     }
   }
@@ -84,6 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sessionNotice = ref.watch(authNoticeProvider);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -159,6 +161,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
+                    if (sessionNotice != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue.shade800,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                sessionNotice,
+                                style: TextStyle(
+                                  color: Colors.blue.shade900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 12),
                       Container(

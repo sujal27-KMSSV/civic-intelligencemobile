@@ -40,7 +40,9 @@ class AuthRepository {
 
   /// Reads previously persisted credentials back from secure storage.
   ///
-  /// Returns `null` when no valid session exists.
+  /// Returns `null` when no valid session exists. The restored user carries
+  /// whatever profile data was saved at login (including display names), so
+  /// Home/Profile show the same name after a restart as right after signing in.
   Future<User?> restoreSession() async {
     final token = await _storage.readToken();
     if (token == null || token.isEmpty) return null;
@@ -49,7 +51,12 @@ class AuthRepository {
     final userId = await _storage.readUserId();
     if (email == null || userId == null) return null;
 
-    return User(id: userId, email: email);
+    return User(
+      id: userId,
+      email: email,
+      firstName: await _storage.readUserFirstName(),
+      lastName: await _storage.readUserLastName(),
+    );
   }
 
   /// Returns the current auth token, or `null` when signed out.
@@ -62,6 +69,8 @@ class AuthRepository {
       refreshToken: response.refreshToken,
       userId: response.user?.id,
       email: response.user?.email,
+      firstName: response.user?.firstName,
+      lastName: response.user?.lastName,
     );
   }
 }

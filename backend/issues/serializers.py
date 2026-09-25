@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import Issue
 from .validators import validate_issue_image
+from .window import delete_window_expired
 
 
 class IssueSerializer(serializers.ModelSerializer):
@@ -17,6 +18,20 @@ class IssueSerializer(serializers.ModelSerializer):
         write_only=True, required=True, validators=[validate_issue_image]
     )
     image_url = serializers.ImageField(source="image", read_only=True)
+    image_source = serializers.ChoiceField(
+        choices=Issue.ImageSource.choices,
+        required=False,
+        allow_blank=True,
+    )
+    # Client idempotency key: write-only, never exposed in responses. The view
+    # uses it to return the existing report on a duplicate retry.
+    client_request_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=128,
+        write_only=True,
+    )
     description = serializers.CharField(required=False, allow_blank=True)
     latitude = serializers.FloatField(min_value=-90.0, max_value=90.0)
     longitude = serializers.FloatField(min_value=-180.0, max_value=180.0)
@@ -41,6 +56,11 @@ class IssueSerializer(serializers.ModelSerializer):
     )
     resolution_similarity = serializers.FloatField(read_only=True)
     resolved_at = serializers.DateTimeField(read_only=True)
+    # Server-authoritative retraction/editing flags. The app derives Delete /
+    # Edit visibility exclusively from these, eliminating device-vs-server
+    # clock skew (the historical cause of the “Delete button flicker” bug).
+    can_delete = serializers.SerializerMethodField(read_only=True)
+    can_edit = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Issue
@@ -48,6 +68,8 @@ class IssueSerializer(serializers.ModelSerializer):
             "id",
             "image",
             "image_url",
+            "image_source",
+            "client_request_id",
             "description",
             "latitude",
             "longitude",
@@ -65,6 +87,8 @@ class IssueSerializer(serializers.ModelSerializer):
             "resolution_image_url",
             "resolution_similarity",
             "resolved_at",
+            "can_delete",
+            "can_edit",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
@@ -74,3 +98,12 @@ class IssueSerializer(serializers.ModelSerializer):
         if obj.resolution_similarity is not None:
             return "verification-recorded"
         return "pending"
+
+    def get_can_delete(self, obj) -> bool:
+        return not delete_window_expired(obj.created_at)
+
+    def get_can_edit(self, obj) -> bool:
+        # Editing the report text stays possible while the report is visible.
+        # Only the coordinator may update the working description after the
+        # status moves out of REPORTED, so citizens stop editing then.
+        return obj.status in (Issue.Status.REPORTED, Issue.Status.VERIFIED)

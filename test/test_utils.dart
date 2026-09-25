@@ -40,6 +40,8 @@ class InMemoryAuthStorage implements AuthStorage {
   String? refreshToken;
   String? userId;
   String? email;
+  String? firstName;
+  String? lastName;
 
   @override
   Future<void> clear() async {
@@ -48,6 +50,8 @@ class InMemoryAuthStorage implements AuthStorage {
     refreshToken = null;
     userId = null;
     email = null;
+    firstName = null;
+    lastName = null;
   }
 
   @override
@@ -62,6 +66,12 @@ class InMemoryAuthStorage implements AuthStorage {
   @override
   Future<String?> readUserEmail() async => email;
 
+  @override
+  Future<String?> readUserFirstName() async => firstName;
+
+  @override
+  Future<String?> readUserLastName() async => lastName;
+
   /// Convenience for tests (not part of the [AuthStorage] interface).
   Future<String?> readRefreshToken() async => refreshToken;
 
@@ -72,12 +82,16 @@ class InMemoryAuthStorage implements AuthStorage {
     String? refreshToken,
     String? userId,
     String? email,
+    String? firstName,
+    String? lastName,
   }) async {
     this.token = token;
     if (tokenScheme != null) this.tokenScheme = tokenScheme;
     if (refreshToken != null) this.refreshToken = refreshToken;
     if (userId != null) this.userId = userId;
     if (email != null) this.email = email;
+    if (firstName != null) this.firstName = firstName;
+    if (lastName != null) this.lastName = lastName;
   }
 }
 
@@ -134,15 +148,30 @@ LocationPoint testLocation() => LocationPoint(
     );
 
 class FakeReportRepository implements ReportRepository {
-  FakeReportRepository({this.error, this.reports = const []});
+  FakeReportRepository({this.error, List<Issue>? reports})
+      : reports = reports == null ? [] : List.of(reports);
 
   final Object? error;
   final List<Issue> reports;
   int submitCalls = 0;
   ReportDraft? lastDraft;
 
+  /// The client_request_id passed on the most recent submission.
+  String? lastRequestId;
+
+  /// Ids deleted through [deleteIssue], for test assertions.
+  final Set<String> deletedIds = {};
+
   @override
   Future<List<Issue>> fetchMyReports() async => reports;
+
+  @override
+  Future<void> deleteIssue(String id) async {
+    final error = this.error;
+    if (error != null) throw error;
+    deletedIds.add(id);
+    reports.removeWhere((issue) => issue.id == id);
+  }
 
   @override
   Future<Issue> fetchIssue(String id) async {
@@ -154,9 +183,41 @@ class FakeReportRepository implements ReportRepository {
   }
 
   @override
-  Future<Issue> submitReport(ReportDraft draft) async {
+  Future<Issue> updateIssue(
+    String id, {
+    String? description,
+    String? address,
+  }) async {
+    final error = this.error;
+    if (error != null) throw error;
+    final index = reports.indexWhere((issue) => issue.id == id);
+    if (index < 0) {
+      throw const ServerException(message: 'Issue not found.', statusCode: 404);
+    }
+    final current = reports[index];
+    final updated = Issue(
+      id: current.id,
+      description: description ?? current.description,
+      imageUrl: current.imageUrl,
+      latitude: current.latitude,
+      longitude: current.longitude,
+      address: address ?? current.address,
+      status: current.status,
+      createdAt: current.createdAt,
+      updatedAt: DateTime.now().toUtc(),
+      analysis: current.analysis,
+      canDelete: current.canDelete,
+      canEdit: current.canEdit,
+    );
+    reports[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<Issue> submitReport(ReportDraft draft, {String? clientRequestId}) async {
     submitCalls++;
     lastDraft = draft;
+    lastRequestId = clientRequestId;
     final error = this.error;
     if (error != null) throw error;
     return Issue(

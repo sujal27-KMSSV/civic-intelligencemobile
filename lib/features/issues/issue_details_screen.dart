@@ -3,9 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/colors.dart';
+import '../../core/widgets/report_edit_dialog.dart';
 import '../../core/widgets/severity_chip.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../models/issue.dart';
+import '../../features/reporting/report_repository.dart';
+import '../../features/feed/issue_feed_repository.dart';
 import 'issue_details_provider.dart';
 
 /// Full view of a citizen report: photo, civic analysis, location, department
@@ -31,9 +34,33 @@ class IssueDetailsScreen extends ConsumerWidget {
     final shown = fetched?.valueOrNull ?? issue;
     final fetching = issue == null && (fetched?.isLoading ?? false);
     final failed = issue == null && (fetched?.hasError ?? false);
+    final canEdit = shown != null && shown.canEdit == true;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Issue #$issueId')),
+      appBar: AppBar(
+        title: Text('Issue #$issueId'),
+        actions: [
+          if (canEdit)
+            IconButton(
+              tooltip: 'Edit report',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () async {
+                final updated = await showReportEditDialog(
+                  context,
+                  repository: ref.read(reportRepositoryProvider),
+                  issue: shown,
+                );
+                if (!context.mounted) return;
+                if (updated == null) return;
+                ref.invalidate(issueDetailsProvider(issueId));
+                ref.invalidate(issueFeedProvider);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Report updated.')),
+                );
+              },
+            ),
+        ],
+      ),
       body: fetching
           ? const Center(child: CircularProgressIndicator())
           : failed

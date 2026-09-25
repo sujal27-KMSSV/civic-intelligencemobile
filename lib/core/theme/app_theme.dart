@@ -71,6 +71,40 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
         ),
       ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        side: BorderSide(color: _colorScheme.outlineVariant),
+        selectedColor: _colorScheme.primaryContainer,
+        labelStyle: TextStyle(color: _colorScheme.onSurface),
+        secondaryLabelStyle: TextStyle(color: _colorScheme.onSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        contentTextStyle: const TextStyle(fontSize: 14),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 68,
+        indicatorColor: _colorScheme.secondaryContainer,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? _colorScheme.onSecondaryContainer
+                : _colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: _primaryColor,
+        selectionColor: _primaryColor.withValues(alpha: 0.24),
+        selectionHandleColor: _primaryColor,
+      ),
     );
   }
 }

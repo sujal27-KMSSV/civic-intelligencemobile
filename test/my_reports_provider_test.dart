@@ -15,11 +15,25 @@ class _MutableReports implements ReportRepository {
   Future<List<Issue>> fetchMyReports() async => List.of(_reports);
 
   @override
+  Future<void> deleteIssue(String id) async {
+    _reports.removeWhere((issue) => issue.id == id);
+  }
+
+  @override
   Future<Issue> fetchIssue(String id) async =>
       _reports.firstWhere((issue) => issue.id == id);
 
   @override
-  Future<Issue> submitReport(ReportDraft draft) async {
+  Future<Issue> submitReport(ReportDraft draft, {String? clientRequestId}) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<Issue> updateIssue(
+    String id, {
+    String? description,
+    String? address,
+  }) async {
     throw UnimplementedError();
   }
 }

@@ -17,7 +17,8 @@ class ReportDraftNotifier extends Notifier<ReportDraft> {
   void selectCategory(String category) =>
       state = state.copyWith(category: category);
 
-  void setImage(File image) => state = state.copyWith(image: image);
+  void setImage(File image, {String? imageSource}) =>
+      state = state.copyWith(image: image, imageSource: imageSource);
 
   void clearImage() => state = state.copyWith(clearImage: true);
 

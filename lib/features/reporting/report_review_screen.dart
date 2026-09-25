@@ -47,7 +47,7 @@ class _ReportReviewScreenState extends ConsumerState<ReportReviewScreen> {
         child: Stack(
           children: [
             ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 130),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 150),
               children: [
                 if (!draft.isReadyToSubmit) ...[
                   _MissingBanner(draft: draft),

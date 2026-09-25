@@ -34,6 +34,10 @@ class ApiClient {
   final Duration _timeout;
   final AuthStorage _authStorage;
 
+  /// Timeout used on the retry attempt of read requests, so a cold server
+  /// (Render first boot after idle, ~30-60s) can answer before we give up.
+  static const Duration _coldStartTimeout = Duration(seconds: 60);
+
   /// Called when the server responds with HTTP 401.
   /// Injected by the auth layer to trigger automatic logout.
   void Function()? onUnauthorized;
@@ -62,24 +66,37 @@ class ApiClient {
   Future<Map<String, dynamic>> get(String path) async {
     final headers = await _getHeaders();
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      return await _guard(
+      final result = await _guardWithRetry(
         () => _client.get(_buildUri(path), headers: headers),
         _handleResponse,
+        method: 'GET',
+        path: path,
+        stopwatch: stopwatch,
       );
+      ok = true;
+      return result;
     } finally {
       perfLog('api', 'GET $path', stopwatch.elapsedMilliseconds);
+      debugNet('GET', path, ok: ok, elapsedMs: stopwatch.elapsedMilliseconds);
     }
   }
 
+  /// Auth-only POST (login/register). Routing it through [_guardWithRetry] is
+  /// safe: a retried register lands as "user already exists" at worst (the
+  /// first attempt succeeded), and a retried login just issues another token.
+  /// This keeps a Render cold start (~50s first boot) from failing the very
+  /// first Sign In of the day.
   Future<Map<String, dynamic>> post(
     String path, {
     Map<String, dynamic>? body,
   }) async {
     final headers = await _getHeaders();
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      return await _guard(
+      final result = await _guardWithRetry(
         () => _client.post(
           _buildUri(path),
           headers: headers,
@@ -89,9 +106,15 @@ class ApiClient {
           _debugLogAuthShape(path, response);
           return _handleResponse(response);
         },
+        method: 'POST',
+        path: path,
+        stopwatch: stopwatch,
       );
+      ok = true;
+      return result;
     } finally {
       perfLog('api', 'POST $path', stopwatch.elapsedMilliseconds);
+      debugNet('POST', path, ok: ok, elapsedMs: stopwatch.elapsedMilliseconds);
     }
   }
 
@@ -101,17 +124,27 @@ class ApiClient {
   }) async {
     final headers = await _getHeaders();
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      return await _guard(
+      // A patch carries absolute replacement values (e.g. description), so a
+      // retried request produces the same result — safe to recover from a
+      // dropped connection without the user noticing.
+      final result = await _guardWithRetry(
         () => _client.patch(
           _buildUri(path),
           headers: headers,
           body: body != null ? jsonEncode(body) : null,
         ),
         _handleResponse,
+        method: 'PATCH',
+        path: path,
+        stopwatch: stopwatch,
       );
+      ok = true;
+      return result;
     } finally {
       perfLog('api', 'PATCH $path', stopwatch.elapsedMilliseconds);
+      debugNet('PATCH', path, ok: ok, elapsedMs: stopwatch.elapsedMilliseconds);
     }
   }
 
@@ -120,40 +153,65 @@ class ApiClient {
     required Map<String, String> fields,
     required List<MultipartFileData> files,
     Duration? timeout,
+    Duration retryTimeout = const Duration(seconds: 60),
   }) async {
     final token = await _authStorage.readToken();
     final scheme = await _authStorage.readTokenScheme() ?? 'Token';
     final uri = _buildUri(path);
 
-    final request = http.MultipartRequest('POST', uri);
-    request.headers['Accept'] = 'application/json';
-    if (token != null) request.headers['Authorization'] = '$scheme $token';
-    request.fields.addAll(fields);
+    // Sends a freshly-built request. A MultiPartRequest is finalized (streamed,
+    // file re-read) on client.send and cannot be re-issued, so the retry path
+    // must rebuild it — this also re-reads the photo from disk, which is fine.
+    Future<http.Response> send() async {
+      final request = http.MultipartRequest('POST', uri);
+      request.headers['Accept'] = 'application/json';
+      if (token != null) request.headers['Authorization'] = '$scheme $token';
+      request.fields.addAll(fields);
 
-    for (final file in files) {
-      request.files.add(
-        file.contentType == null
-            ? await http.MultipartFile.fromPath(file.field, file.filePath)
-            : await http.MultipartFile.fromPath(
-                file.field,
-                file.filePath,
-                contentType: file.contentType,
-              ),
-      );
+      for (final file in files) {
+        request.files.add(
+          file.contentType == null
+              ? await http.MultipartFile.fromPath(file.field, file.filePath)
+              : await http.MultipartFile.fromPath(
+                  file.field,
+                  file.filePath,
+                  contentType: file.contentType,
+                ),
+        );
+      }
+
+      final streamed = await _client.send(request);
+      return http.Response.fromStream(streamed);
     }
 
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      return await _guard(
-        () async {
-          final streamed = await _client.send(request);
-          return http.Response.fromStream(streamed);
-        },
+      // Submitted through [_guardWithRetry]: the report submission always
+      // carries a stable `client_request_id`, and the backend de-duplicates on
+      // it, so a dropped connection / cold-server retry cannot create a
+      // duplicate report. The retry runs with a shorter budget than the first
+      // attempt so a genuinely dead network fails within ~2 minutes instead of
+      // hanging the "Still working…" spinner indefinitely.
+      final result = await _guardWithRetry(
+        send,
         _handleResponse,
+        method: 'multipart POST',
+        path: path,
+        stopwatch: stopwatch,
         timeout: timeout,
+        retryTimeout: retryTimeout,
       );
+      ok = true;
+      return result;
     } finally {
       perfLog('api', 'multipart POST $path', stopwatch.elapsedMilliseconds);
+      debugNet(
+        'multipart POST',
+        path,
+        ok: ok,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
     }
   }
 
@@ -168,13 +226,23 @@ class ApiClient {
     required double latitude,
     required double longitude,
     String? description,
-    Duration timeout = const Duration(seconds: 60),
+    String? category,
+    String? imageSource,
+    String? clientRequestId,
+    Duration timeout = const Duration(seconds: 120),
+    Duration retryTimeout = const Duration(seconds: 60),
   }) async {
     final fields = <String, String>{
       'latitude': latitude.toString(),
       'longitude': longitude.toString(),
+      if (category != null && category.trim().isNotEmpty)
+        'category': category.trim(),
+      if (imageSource != null && imageSource.trim().isNotEmpty)
+        'image_source': imageSource.trim(),
       if (description != null && description.trim().isNotEmpty)
         'description': description.trim(),
+      if (clientRequestId != null && clientRequestId.trim().isNotEmpty)
+        'client_request_id': clientRequestId.trim(),
     };
     final json = await multipartPost(
       ApiConstants.issues,
@@ -187,6 +255,7 @@ class ApiClient {
         ),
       ],
       timeout: timeout,
+      retryTimeout: retryTimeout,
     );
     return Issue.fromSubmissionJson(json, description: description);
   }
@@ -195,14 +264,25 @@ class ApiClient {
   Future<List<Issue>> fetchMyReports() async {
     final headers = await _getHeaders();
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      final list = await _guard(
+      final list = await _guardWithRetry(
         () => _client.get(_buildUri(ApiConstants.myReports), headers: headers),
         _handleIssueList,
+        method: 'GET',
+        path: ApiConstants.myReports,
+        stopwatch: stopwatch,
       );
+      ok = true;
       return list;
     } finally {
       perfLog('api', 'GET ${ApiConstants.myReports}', stopwatch.elapsedMilliseconds);
+      debugNet(
+        'GET',
+        ApiConstants.myReports,
+        ok: ok,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
     }
   }
 
@@ -210,25 +290,85 @@ class ApiClient {
   Future<List<Issue>> fetchIssues() async {
     final headers = await _getHeaders();
     final stopwatch = Stopwatch()..start();
+    var ok = false;
     try {
-      final list = await _guard(
+      final list = await _guardWithRetry(
         () => _client.get(_buildUri(ApiConstants.issues), headers: headers),
         _handleIssueList,
+        method: 'GET',
+        path: ApiConstants.issues,
+        stopwatch: stopwatch,
       );
+      ok = true;
       return list;
     } finally {
       perfLog('api', 'GET ${ApiConstants.issues}', stopwatch.elapsedMilliseconds);
+      debugNet(
+        'GET',
+        ApiConstants.issues,
+        ok: ok,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
     }
   }
 
   /// Fetches a single issue: `GET /api/issues/{id}/`.
   Future<Issue> fetchIssue(String id) async {
     final headers = await _getHeaders();
-    final json = await _guard(
-      () => _client.get(_buildUri(ApiConstants.issueById(id)), headers: headers),
-      _handleResponse,
-    );
-    return Issue.fromListJson(json);
+    final stopwatch = Stopwatch()..start();
+    var ok = false;
+    try {
+      final json = await _guardWithRetry(
+        () => _client.get(_buildUri(ApiConstants.issueById(id)), headers: headers),
+        _handleResponse,
+        method: 'GET',
+        path: ApiConstants.issueById(id),
+        stopwatch: stopwatch,
+      );
+      ok = true;
+      return Issue.fromListJson(json);
+    } finally {
+      perfLog('api', 'GET ${ApiConstants.issueById(id)}', stopwatch.elapsedMilliseconds);
+      debugNet(
+        'GET',
+        ApiConstants.issueById(id),
+        ok: ok,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
+    }
+  }
+
+  /// Deletes a submitted report: `DELETE /api/issues/{id}/`.
+  ///
+  /// The backend owns the rules: deletes outside the 10-minute retraction
+  /// window (and deletes of other users' reports) come back as HTTP 403 and
+  /// surface as [ServerException].
+  Future<void> deleteIssue(String id) async {
+    final headers = await _getHeaders();
+    final stopwatch = Stopwatch()..start();
+    var ok = false;
+    try {
+      await _guard(
+        () => _client.delete(
+          _buildUri(ApiConstants.issueById(id)),
+          headers: headers,
+        ),
+        _handleResponse,
+      );
+      ok = true;
+    } finally {
+      perfLog(
+        'api',
+        'DELETE ${ApiConstants.issueById(id)}',
+        stopwatch.elapsedMilliseconds,
+      );
+      debugNet(
+        'DELETE',
+        ApiConstants.issueById(id),
+        ok: ok,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+      );
+    }
   }
 
   /// Decodes and maps a list response into [Issue]s, offloading the work to a
@@ -284,7 +424,9 @@ class ApiClient {
   }
 
   /// Runs a request, applying the timeout and normalising transport errors
-  /// into [NetworkException]s.
+  /// into [NetworkException]s with a classified [NetworkErrorKind] so the UI
+  /// can show a specific message instead of one generic "check your
+  /// connection" line.
   Future<T> _guard<T>(
     Future<http.Response> Function() request,
     FutureOr<T> Function(http.Response) handle, {
@@ -295,35 +437,156 @@ class ApiClient {
       return await handle(response);
     } on TimeoutException {
       throw const NetworkException(
-        message: 'The server took too long to respond. Please try again.',
+        message: 'The server took too long to respond. It may still be '
+            'starting up — please try again.',
+        kind: NetworkErrorKind.timeout,
+        isRetryable: true,
       );
-    } on http.ClientException {
+    } on SocketException catch (e) {
+      if (e.message.isEmpty) {
+        throw const NetworkException(
+          message: 'Could not reach the server.',
+          kind: NetworkErrorKind.other,
+          isRetryable: true,
+        );
+      }
+      final msg = e.message.toLowerCase();
+      if (msg.contains('failed host lookup') ||
+          msg.contains('name or service not known') ||
+          msg.contains('getaddrinfo')) {
+        throw const NetworkException(
+          message: 'Could not reach the server. Check your internet '
+              'connection.',
+          kind: NetworkErrorKind.dns,
+          isRetryable: true,
+        );
+      }
+      if (msg.contains('refused')) {
+        throw const NetworkException(
+          message: 'The server is not responding right now. Try again shortly.',
+          kind: NetworkErrorKind.connectionRefused,
+        );
+      }
+      if (msg.contains('network is unreachable') ||
+          msg.contains('no route to host')) {
+        throw const NetworkException(
+          message: 'You do not seem to be online. Check your connection.',
+          kind: NetworkErrorKind.noInternet,
+        );
+      }
       throw const NetworkException(
         message: 'Could not reach the server. Check your connection.',
+        kind: NetworkErrorKind.other,
+        isRetryable: true,
       );
-    } on SocketException {
+    } on http.ClientException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('connection closed') ||
+          msg.contains('connection reset') ||
+          msg.contains('connection aborted')) {
+        throw const NetworkException(
+          message: 'The connection dropped. Please try again.',
+          kind: NetworkErrorKind.connectionReset,
+          isRetryable: true,
+        );
+      }
       throw const NetworkException(
         message: 'Could not reach the server. Check your connection.',
+        kind: NetworkErrorKind.other,
+        isRetryable: true,
       );
     } on HandshakeException {
       throw const NetworkException(
         message:
             'Secure connection failed. Check your network or try again later.',
+        kind: NetworkErrorKind.tls,
       );
     } on HttpException {
       throw const NetworkException(
         message: 'Could not reach the server. Check your connection.',
+        kind: NetworkErrorKind.other,
+        isRetryable: true,
       );
     } on IOException {
       throw const NetworkException(
         message: 'A connection error occurred. Please try again.',
+        kind: NetworkErrorKind.other,
+        isRetryable: true,
       );
     } catch (e) {
       if (e is AppException) rethrow;
       throw const NetworkException(
         message: 'A connection error occurred. Please try again.',
+        kind: NetworkErrorKind.other,
       );
     }
+  }
+
+  /// Like [_guard] but retries the request ONCE after a short backoff when the
+  /// failure is a safe-to-retry transport error.
+  ///
+  /// Used only for idempotent writes (login, register, multipart submit with a
+  /// `client_request_id`) and reads (GET): re-issuing those is always safe.
+  /// The retry runs with [retryTimeout] (or [_coldStartTimeout]) so a cold
+  /// backend container (e.g. Render first boot, ~30-60s) has time to answer
+  /// without the user seeing an error.
+  Future<T> _guardWithRetry<T>(
+    Future<http.Response> Function() request,
+    FutureOr<T> Function(http.Response) handle, {
+    required String method,
+    required String path,
+    required Stopwatch stopwatch,
+    Duration? timeout,
+    Duration? retryTimeout,
+  }) async {
+    try {
+      return await _guard(request, handle, timeout: timeout);
+    } on NetworkException catch (e) {
+      if (!e.isRetryable) rethrow;
+      debugNet(
+        method,
+        path,
+        ok: false,
+        elapsedMs: stopwatch.elapsedMilliseconds,
+        detail: '${e.kindName}; retrying once',
+      );
+      try {
+        await Future<void>.delayed(const Duration(milliseconds: 1000));
+        return await _guard(
+          request,
+          handle,
+          timeout: retryTimeout ?? timeout ?? _coldStartTimeout,
+        );
+      } on NetworkException {
+        debugNet(
+          method,
+          path,
+          ok: false,
+          elapsedMs: stopwatch.elapsedMilliseconds,
+          detail: 'retry failed',
+        );
+        rethrow;
+      }
+    }
+  }
+
+  /// Optional transport diagnostics, compiled in with
+  /// `--dart-define=DEBUG_NET=true`. Logs only endpoint, method, status,
+  /// timings and error kinds — never request bodies, response bodies or
+  /// credentials.
+  void debugNet(
+    String method,
+    String path, {
+    required bool ok,
+    required int elapsedMs,
+    String? detail,
+  }) {
+    if (!ApiConstants.debugNet) return;
+    final safePath = path.split('?').first;
+    debugPrint(
+      '[net] $method $safePath ok=$ok ${elapsedMs}ms'
+      '${detail == null ? '' : ' detail=$detail'}',
+    );
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {

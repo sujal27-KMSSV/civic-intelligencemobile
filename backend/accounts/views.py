@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .serializers import LoginSerializer, RegisterSerializer, UserSerializer
+from .throttles import AuthRateThrottle
 
 
 def _auth_payload(user):
@@ -15,6 +16,8 @@ def _auth_payload(user):
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -25,6 +28,8 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})

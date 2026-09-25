@@ -109,7 +109,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   void _openDetails(Issue issue) {
-    context.go('/issue/${issue.id}', extra: issue);
+    context.push('/issue/${issue.id}', extra: issue);
   }
 
   @override

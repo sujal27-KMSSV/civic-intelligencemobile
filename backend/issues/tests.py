@@ -1,17 +1,36 @@
+from datetime import timedelta
+from decimal import Decimal
+import io
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import clear_url_caches, resolve
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
+from PIL import Image as PILImage
+
+from .window import DELETE_WINDOW_MESSAGE, delete_window_expired
 
 from .models import Issue
 
 User = get_user_model()
 
-# 1x1 transparent PNG (same bytes the Flutter test suite uses).
-TINY_PNG = bytes(
+
+def _png_bytes(width=480, height=360):
+    """A real, valid PNG large enough to pass the image-dimension guard."""
+    buf = io.BytesIO()
+    PILImage.new("RGB", (width, height), (112, 128, 144)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+# Real-size PNG used for every valid issue creation in this suite. (A 1x1
+# transparent blob would previously pass validation; the upload guard now
+# rejects it as too small to document an issue.)
+TINY_PNG = _png_bytes()
+TINY_1X1_PNG = bytes(
     [
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00,
         0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
@@ -344,6 +363,156 @@ class AuthorityLifecycleTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+class DeleteWindowTests(APITestCase):
+    """Citizen DELETE: 10-minute retraction window, cluster-safety."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="citizen@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.staff = User.objects.create_user(
+            email="authority@example.com",
+            password="secret123",
+            is_staff=True,
+        )
+        self.staff_token, _ = Token.objects.get_or_create(user=self.staff)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _make_issue(self, user=None):
+        return Issue.objects.create(
+            reporter=user or self.user,
+            image=self._png(),
+            description="Pothole near the crossing.",
+            latitude="28.6139",
+            longitude="77.2090",
+        )
+
+    def _post(self, latitude, longitude, description="Pothole at the crossing."):
+        return self.client.post(
+            "/api/issues/",
+            {
+                "latitude": str(latitude),
+                "longitude": str(longitude),
+                "description": description,
+                "category": "pothole",
+                "image": self._png(),
+            },
+            format="multipart",
+        )
+
+    def _backdate(self, issue, ago):
+        Issue.objects.filter(pk=issue.pk).update(
+            created_at=timezone.now() - ago
+        )
+
+    def test_delete_window_helper_boundaries(self):
+        now = timezone.now()
+        # Exactly at the window edge is still allowed (> 10 min is rejected).
+        self.assertFalse(
+            delete_window_expired(now - timedelta(minutes=10), now=now)
+        )
+        # One second past the window is rejected.
+        self.assertTrue(
+            delete_window_expired(now - timedelta(minutes=10, seconds=1), now=now)
+        )
+        # Null/broken timestamps and future clocks are treated as expired.
+        self.assertTrue(delete_window_expired(None, now=now))
+        self.assertTrue(delete_window_expired(now + timedelta(minutes=1), now=now))
+
+    def test_delete_within_window_allowed(self):
+        issue = self._make_issue(self.user)
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_after_window_rejected(self):
+        issue = self._make_issue(self.user)
+        self._backdate(issue, timedelta(minutes=11))
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.json()["detail"], DELETE_WINDOW_MESSAGE)
+        self.assertTrue(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_after_window_rejected_even_for_staff(self):
+        # RULE 4: the window is enforced server-side on every DELETE call.
+        issue = self._make_issue(self.user)
+        self._backdate(issue, timedelta(minutes=11))
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.staff_token.key}")
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_other_users_issue_forbidden_within_window(self):
+        issue = self._make_issue(self.user)
+        other = User.objects.create_user(
+            email="other@example.com", password="secret123"
+        )
+        other_token, _ = Token.objects.get_or_create(user=other)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {other_token.key}")
+        response = self.client.delete(f"/api/issues/{issue.id}/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Issue.objects.filter(id=issue.id).exists())
+
+    def test_delete_missing_issue_404(self):
+        response = self.client.delete("/api/issues/999999/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_last_duplicate_clears_root_cluster_state(self):
+        # Two-member cluster, delete the duplicate -> root has no duplicates.
+        first = self._post(28.6139, 77.2090).json()
+        second = self._post(28.6140, 77.2092).json()
+        root = Issue.objects.get(id=first["id"])
+        self.assertEqual(root.duplicate_count, 2)
+        response = self.client.delete(f"/api/issues/{second['id']}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        root.refresh_from_db()
+        self.assertFalse(root.duplicate)
+        self.assertEqual(root.duplicate_count, 0)
+
+    def test_delete_one_duplicate_shrinks_root_cluster(self):
+        # Three-member cluster, delete one duplicate -> root keeps the rest.
+        first = self._post(28.6139, 77.2090).json()
+        second = self._post(28.6140, 77.2092).json()
+        third = self._post(28.6138, 77.2091).json()
+        root = Issue.objects.get(id=first["id"])
+        self.assertEqual(root.duplicate_count, 3)
+        response = self.client.delete(f"/api/issues/{second['id']}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        root.refresh_from_db()
+        self.assertTrue(root.duplicate)
+        self.assertEqual(root.duplicate_count, 2)
+        self.assertEqual(
+            len(Issue.objects.filter(duplicate_of=root)), 1
+        )
+
+    def test_delete_root_reroots_cluster(self):
+        first = self._post(28.6139, 77.2090).json()
+        second = self._post(28.6140, 77.2092).json()
+        third = self._post(28.6138, 77.2091).json()
+        response = self.client.delete(f"/api/issues/{first['id']}/")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        new_root = Issue.objects.get(id=second["id"])
+        other = Issue.objects.get(id=third["id"])
+        self.assertFalse(new_root.duplicate)
+        self.assertIsNone(new_root.duplicate_of)
+        self.assertEqual(new_root.duplicate_count, 2)
+        self.assertTrue(other.duplicate)
+        self.assertEqual(other.duplicate_of, new_root)
+        self.assertEqual(other.duplicate_count, 2)
+
+    def test_deleted_issue_absent_from_feed_and_my_reports(self):
+        issue = self._make_issue(self.user)
+        self.client.delete(f"/api/issues/{issue.id}/")
+        feed_ids = [i["id"] for i in self.client.get("/api/issues/").json()]
+        self.assertNotIn(issue.id, feed_ids)
+        mine_ids = [i["id"] for i in self.client.get("/api/my-reports/").json()]
+        self.assertNotIn(issue.id, mine_ids)
+
+
 class MediaServingTests(APITestCase):
     """Uploaded media must be served even when DEBUG is off.
 
@@ -365,3 +534,252 @@ class MediaServingTests(APITestCase):
         finally:
             sys.modules.pop(config.urls.__name__, None)
             clear_url_caches()
+
+
+class IdempotencyTests(APITestCase):
+    """client_request_id de-duplicates a retried submission per reporter."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="idem@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _post(self, request_id=None):
+        data = {
+            "latitude": "28.6139",
+            "longitude": "77.2090",
+            "description": "Pothole near the crossing.",
+            "image": self._png(),
+        }
+        if request_id is not None:
+            data["client_request_id"] = request_id
+        return self.client.post("/api/issues/", data, format="multipart")
+
+    def test_same_key_returns_existing_report(self):
+        first = self._post(request_id="ci-123-999")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        second = self._post(request_id="ci-123-999")
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.json()["id"], first.json()["id"])
+        self.assertEqual(Issue.objects.count(), 1)
+
+    def test_same_key_by_different_reporters_creates_separately(self):
+        other = User.objects.create_user(
+            email="idem2@example.com", password="secret123"
+        )
+        other_token, _ = Token.objects.get_or_create(user=other)
+        first = self._post(request_id="ci-123-999")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {other_token.key}")
+        second = self._post(request_id="ci-123-999")
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(second.json()["id"], first.json()["id"])
+        self.assertEqual(Issue.objects.count(), 2)
+
+    def test_no_key_creates_separate_reports(self):
+        first = self._post()
+        second = self._post()
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(second.json()["id"], first.json()["id"])
+        self.assertEqual(Issue.objects.count(), 2)
+
+    def test_different_key_creates_separate_reports(self):
+        first = self._post(request_id="ci-a")
+        second = self._post(request_id="ci-b")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Issue.objects.count(), 2)
+
+    def test_key_is_write_only(self):
+        response = self._post(request_id="ci-secret")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertNotIn("client_request_id", response.json())
+
+    def test_empty_key_is_idempotent_none(self):
+        first = self._post(request_id="   ")
+        second = self._post(request_id="   ")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(second.json()["id"], first.json()["id"])
+        stored = Issue.objects.get(id=first.json()["id"])
+        self.assertIsNone(stored.client_request_id)
+
+
+class UploadGuardTests(APITestCase):
+    """Client and server agree on what counts as a usable photo."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="guard@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _post(self, image_data):
+        return self.client.post(
+            "/api/issues/",
+            {
+                "latitude": "28.6139",
+                "longitude": "77.2090",
+                "description": "Pothole near the crossing.",
+                "image": SimpleUploadedFile(
+                    "photo.png", image_data, content_type="image/png"
+                ),
+            },
+            format="multipart",
+        )
+
+    def test_tiny_image_rejected(self):
+        response = self._post(TINY_1X1_PNG)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("too small", response.json()["image"][0])
+
+    def test_pixel_bomb_rejected(self):
+        # > 24 MP in a single frame is rejected even though the PNG compresses
+        # to a small file (a classic pixel-bomb / memory-exhaustion vector).
+        big = _png_bytes(width=5000, height=5000)
+        response = self._post(big)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("resolution is too high", response.json()["image"][0])
+
+    def test_editable_photo_accepted(self):
+        response = self._post(TINY_PNG)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class ServerPermissionFlagTests(APITestCase):
+    """can_delete / can_edit are computed server-side from its own clock."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="flags@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _make_issue(self):
+        return Issue.objects.create(
+            reporter=self.user,
+            image=self._png(),
+            description="Pothole near the crossing.",
+            latitude="28.6139",
+            longitude="77.2090",
+        )
+
+    def _detail(self, issue_id):
+        return self.client.get(f"/api/issues/{issue_id}/")
+
+    def test_fresh_issue_fully_editable(self):
+        issue = self._make_issue()
+        payload = self._detail(issue.id).json()
+        self.assertTrue(payload["can_delete"])
+        self.assertTrue(payload["can_edit"])
+
+    def test_backdated_issue_cannot_delete(self):
+        issue = self._make_issue()
+        Issue.objects.filter(pk=issue.pk).update(
+            created_at=timezone.now() - timedelta(minutes=11)
+        )
+        payload = self._detail(issue.id).json()
+        self.assertFalse(payload["can_delete"])
+        # Still in REPORTED, so the citizen may keep editing the write-up.
+        self.assertTrue(payload["can_edit"])
+
+    def test_resolved_issue_cannot_edit(self):
+        issue = self._make_issue()
+        Issue.objects.filter(pk=issue.pk).update(status=Issue.Status.RESOLVED)
+        payload = self._detail(issue.id).json()
+        self.assertFalse(payload["can_edit"])
+        # The retraction window is untouched by lifecycle transitions.
+        self.assertTrue(payload["can_delete"])
+
+    def test_flags_exposed_in_my_reports(self):
+        issue = self._make_issue()
+        payload = self.client.get("/api/my-reports/").json()[0]
+        self.assertIn("can_delete", payload)
+        self.assertIn("can_edit", payload)
+        self.assertTrue(payload["can_delete"])
+        self.assertTrue(payload["can_edit"])
+
+
+class CitizenPATCHRestrictionTests(APITestCase):
+    """Citizens may fix only their own report's description/address."""
+
+    RESTRICTED_MSG = "Citizens may only change: description, address."
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="editor@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _make_issue(self):
+        return Issue.objects.create(
+            reporter=self.user,
+            image=self._png(),
+            description="Pothole near the crossing.",
+            latitude="28.6139",
+            longitude="77.2090",
+        )
+
+    def test_latitude_is_not_citizen_editable(self):
+        issue = self._make_issue()
+        # Even a *valid* coordinate change is authority-owned; citizens may
+        # only edit description/address.
+        response = self.client.patch(
+            f"/api/issues/{issue.id}/", {"latitude": "12.9716"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(self.RESTRICTED_MSG, response.json()["detail"])
+        issue.refresh_from_db()
+        self.assertEqual(issue.latitude, Decimal("28.6139"))
+
+    def test_category_is_not_citizen_editable(self):
+        issue = self._make_issue()
+        # "pothole" is a valid category choice, but category is still
+        # authority-owned after creation.
+        response = self.client.patch(
+            f"/api/issues/{issue.id}/", {"category": "pothole"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn(self.RESTRICTED_MSG, response.json()["detail"])
+
+    def test_address_is_citizen_editable(self):
+        issue = self._make_issue()
+        response = self.client.patch(
+            f"/api/issues/{issue.id}/",
+            {"address": "14 MG Road, Bengaluru"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json()["address"], "14 MG Road, Bengaluru"
+        )
+        issue.refresh_from_db()
+        self.assertEqual(issue.address, "14 MG Road, Bengaluru")
+
+    def test_multi_field_patch_reports_every_disallowed_field(self):
+        issue = self._make_issue()
+        response = self.client.patch(
+            f"/api/issues/{issue.id}/",
+            {"status": "resolved", "category": "pothole"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        for field in ("category", "status"):
+            self.assertIn(field, response.json()["detail"])
