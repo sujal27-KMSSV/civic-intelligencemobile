@@ -24,7 +24,8 @@ web dashboard + optional FastAPI AI sidecar.
 ```text
 backend/       Django + DRF API and the rule-based civic engine
 lib/           Flutter app (citizen + my-reports + map + profile)
-authority-web/ Lightweight authority dashboard (static HTML against the JSON API)
+authority-web/  Authority Admin: React + TypeScript + Vite SPA (login, dashboard,
+                issues list/detail, map, analytics) served as a static site
 integration_test/  On-device E2E (self-contained two-account, network failure)
 test/          Widget/unit tests for the Flutter app
 docs/          Honest technical documentation + claim sheet
@@ -91,9 +92,35 @@ reports in the shared database when they finish.
 
 ## Deployment
 
+Production (Render):
+
+| Service | URL | Notes |
+| --- | --- | --- |
+| Django API | https://civic-intelligence-api.onrender.com | Docker, `backend/`, health check `/api/health/` |
+| Authority Admin | https://civic-intelligence-authority.onrender.com | static site, `authority-web/`, `/index.html` rewrite |
+
+Both services are defined in [render.yaml](render.yaml) and deploy from
+`main` of this repository. The Admin is a browser SPA that calls **only** the
+Django API; the Citizen app and the Admin never talk to each other.
+
+`VITE_API_BASE_URL` is **pinned at build time** to the public API in
+`render.yaml`, so the built bundle can never point at `localhost`. Because Vite
+inlines `VITE_*` variables during `npm run build`, changing the API host means
+rebuilding the Admin, not just restarting it.
+
+CORS is explicit and locked down: `CORS_ALLOW_ALL_ORIGINS=False` and
+`CORS_ALLOWED_ORIGINS` lists only the API's own origin plus the real Admin
+hostname (scheme + host, no path, no wildcard). Django reads this at process
+start, so changing it requires an API redeploy.
+
 The API deploys to Render via Docker. See [docs/deployment.md](docs/deployment.md)
 for env vars, the migration-on-boot command, and the honest list of what is
 blocked (PostGIS, S3/R2 media) and the non-GIS solutions in place.
+
+The optional `ai_service` sidecar is a **separate, paid** service and is not
+part of the demo deployment. With it unset, `AI_SERVICE_URL` is empty and the
+API reports vision honestly as `{"status": "not_analyzed", "service": null}`
+while duplicate intelligence still runs on the deterministic rule engine.
 
 ## Documentation
 
