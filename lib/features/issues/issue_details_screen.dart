@@ -203,6 +203,10 @@ class _IssueDetailBody extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               if (_hasAnalysis) _AnalysisSection(issue: issue) else const _AnalysisUnavailable(),
+              if (issue.vision != null) ...[
+                const SizedBox(height: 16),
+                _VisionSection(issue: issue),
+              ],
               if (_hasPriority) ...[
                 const SizedBox(height: 16),
                 _PrioritySection(issue: issue),
@@ -506,6 +510,101 @@ class _PrioritySection extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _VisionSection extends StatelessWidget {
+  final Issue issue;
+
+  const _VisionSection({required this.issue});
+
+  @override
+  Widget build(BuildContext context) {
+    final vision = issue.vision;
+    if (vision == null) return const SizedBox.shrink();
+
+    final emulator = vision.status == 'ok' ? Icons.visibility_outlined : Icons.visibility_off_outlined;
+    final workingAi = vision.available;
+    final statusLabel = switch (vision.status) {
+      'ok' => 'AI service: online',
+      'unavailable' => 'AI service: unavailable (rule-based only)',
+      _ => 'Not analysed by the AI service',
+    };
+
+    return _SectionCard(
+      title: 'AI photo analysis',
+      icon: emulator,
+      children: [
+        _InfoRow(
+          icon: workingAi ? Icons.check_circle_outline : Icons.info_outline,
+          label: 'Status',
+          value: statusLabel,
+        ),
+        if (vision.models.isNotEmpty)
+          _InfoRow(
+            icon: Icons.memory_outlined,
+            label: 'Model',
+            value: vision.models.values.join(', '),
+          ),
+        if (vision.classifierLabels.isNotEmpty)
+          _InfoRow(
+            icon: Icons.label_outline,
+            label: 'Photo guesses',
+            value: vision.classifierLabels.take(3).join(', '),
+          ),
+        if (vision.detections.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text(
+              'Objects detected (generic COCO labels, not damage verdicts):',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
+          for (final d in vision.detections.take(5))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.place_outlined, size: 15, color: Colors.grey),
+                  const SizedBox(width: 6),
+                  Text(
+                    d.label,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${(d.confidence * 100).round()}%',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        if (vision.priorityModel?.score != null) ...[
+          const SizedBox(height: 6),
+          _InfoRow(
+            icon: Icons.insights_outlined,
+            label: 'Learned estimate',
+            value: '${vision.priorityModel!.score!.round()}/100',
+          ),
+        ],
+        if (issue.priorityModelScore != null)
+          _InfoRow(
+            icon: Icons.insights_outlined,
+            label: 'Advisory ML priority',
+            value: '${issue.priorityModelScore!.round()}/100',
+          ),
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Advisory only: real pretrained models, all outputs labelled with '
+            'their exact model. Never overrides the explainable priority.',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+        ),
       ],
     );
   }

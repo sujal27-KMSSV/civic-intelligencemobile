@@ -293,6 +293,10 @@ class _ResultSuccess extends StatelessWidget {
                     analysis: analysis,
                     confidencePercent: confidencePercent,
                   ),
+                  if (issue.vision != null) ...[
+                    const SizedBox(height: 12),
+                    _AiTransparencyNote(issue: issue),
+                  ],
                   if (issue.priority != null ||
                       issue.priorityLabel != null) ...[
                     const SizedBox(height: 12),
@@ -454,6 +458,76 @@ class _AnalysisCard extends StatelessWidget {
               value: analysis.confidence.clamp(0.0, 1.0),
               minHeight: 8,
               backgroundColor: colors.surfaceContainerHighest,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiTransparencyNote extends StatelessWidget {
+  const _AiTransparencyNote({required this.issue});
+
+  final Issue issue;
+
+  @override
+  Widget build(BuildContext context) {
+    final vision = issue.vision;
+    if (vision == null) return const SizedBox.shrink();
+    final colors = Theme.of(context).colorScheme;
+
+    final summary = <String>[
+      if (vision.models.isNotEmpty) vision.models.values.join(', '),
+      if (vision.detections.isNotEmpty)
+        '${vision.detections.length} object(s) detected',
+    ].join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            vision.available
+                ? Icons.visibility_outlined
+                : Icons.block_outlined,
+            size: 18,
+            color: colors.primary,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  vision.available
+                      ? 'AI photo analysis (advisory)'
+                      : 'AI photo analysis unavailable',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (summary.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    summary,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 3),
+                Text(
+                  'Real models, all output labelled; never overrides the '
+                  'explainable analysis above.',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                ),
+              ],
             ),
           ),
         ],

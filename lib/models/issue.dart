@@ -39,6 +39,14 @@ class Issue {
   final DateTime? updatedAt;
   final AiAnalysis? analysis;
 
+  /// AI-sidecar insights (real models, labelled provenance). Null when the
+  /// backend did not serve a vision block (sidecar off / degraded).
+  final VisionInfo? vision;
+
+  /// Advisory ML priority estimation (0..100) from the AI sidecar. NEVER the
+  /// authoritative `priority` — always displayed with a prototype label.
+  final double? priorityModelScore;
+
   /// Explainable, rule-based priority (0..100) computed by the civic engine.
   /// Only surfaced when the backend provides it.
   final double? priority;
@@ -70,6 +78,8 @@ class Issue {
     this.createdAt,
     this.updatedAt,
     this.analysis,
+    this.vision,
+    this.priorityModelScore,
     this.priority,
     this.priorityLabel,
     this.priorityReasons = const [],
@@ -98,6 +108,10 @@ class Issue {
       analysis: json['analysis'] != null
           ? AiAnalysis.fromJson(json['analysis'] as Map<String, dynamic>)
           : null,
+      vision: json['vision'] != null
+          ? VisionInfo.fromJson(json['vision'] as Map<String, dynamic>)
+          : null,
+      priorityModelScore: _toDouble(json['priority_model_score']),
       priority: _toDouble(json['priority']),
       priorityLabel: json['priority_label'] as String?,
       priorityReasons: _stringList(json['priority_reasons']),
@@ -123,6 +137,10 @@ class Issue {
       id: id is num ? '${id.toInt()}' : (id?.toString() ?? 'Unknown'),
       description: description,
       status: json['status']?.toString() ?? 'reported',
+      priorityModelScore: _toDouble(json['priority_model_score']),
+      vision: json['vision'] != null
+          ? VisionInfo.fromJson(json['vision'] as Map<String, dynamic>)
+          : null,
       priority: _toDouble(json['priority']),
       priorityLabel: json['priority_label'] as String?,
       priorityReasons: _stringList(json['priority_reasons']),
@@ -151,6 +169,8 @@ class Issue {
         'created_at': createdAt?.toIso8601String(),
         'updated_at': updatedAt?.toIso8601String(),
         'analysis': analysis?.toJson(),
+        'vision': vision?.toJson(),
+        'priority_model_score': priorityModelScore,
         'priority': priority,
         'priority_label': priorityLabel,
         'priority_reasons': priorityReasons,
@@ -190,6 +210,10 @@ class Issue {
           ? DateTime.tryParse(json['updated_at'] as String)
           : null,
       analysis: analysis,
+      vision: json['vision'] != null
+          ? VisionInfo.fromJson(json['vision'] as Map<String, dynamic>)
+          : null,
+      priorityModelScore: _toDouble(json['priority_model_score']),
       priority: _toDouble(json['priority']),
       priorityLabel: json['priority_label'] as String?,
       priorityReasons: _stringList(json['priority_reasons']),
@@ -202,6 +226,136 @@ class Issue {
   }
 
   IssueStatus get statusEnum => IssueStatus.parse(status);
+}
+
+/// AI-sidecar insights for an issue. Every value is labelled with its real
+/// provenance; nothing here should ever be shown as authoritative truth.
+class VisionInfo {
+  final String status; // ok | unavailable | not_analyzed
+  final Map<String, String> models; // embedding / detection / classifier names
+  final List<Detection> detections;
+  final List<String> classifierLabels;
+  final PriorityModelInfo? priorityModel;
+  final List<String> notes;
+
+  const VisionInfo({
+    required this.status,
+    this.models = const {},
+    this.detections = const [],
+    this.classifierLabels = const [],
+    this.priorityModel,
+    this.notes = const [],
+  });
+
+  bool get available => status == 'ok';
+
+  factory VisionInfo.fromJson(Map<String, dynamic> json) {
+    final modelsRaw = json['models'];
+    final models = <String, String>{
+      if (modelsRaw is Map<String, dynamic>)
+        ...modelsRaw.map(
+          (k, v) => MapEntry(k, v.toString()),
+        ),
+    };
+    final detectionsRaw = json['detections'];
+    final detections = detectionsRaw is List
+        ? detectionsRaw
+            .whereType<Map<String, dynamic>>()
+            .map(Detection.fromJson)
+            .toList()
+        : const <Detection>[];
+    final labels = json['classifier_labels'];
+    return VisionInfo(
+      status: json['status']?.toString() ?? 'unavailable',
+      models: models,
+      detections: detections,
+      classifierLabels:
+          labels is List ? labels.map((e) => e.toString()).toList() : const [],
+      priorityModel: json['priority_model'] is Map<String, dynamic>
+          ? PriorityModelInfo.fromJson(
+              json['priority_model'] as Map<String, dynamic>)
+          : null,
+      notes: json['notes'] is List
+          ? (json['notes'] as List).map((e) => e.toString()).toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'status': status,
+        'models': models,
+        'detections': detections.map((d) => d.toJson()).toList(),
+        'classifier_labels': classifierLabels,
+        'priority_model': priorityModel?.toJson(),
+        'notes': notes,
+      };
+}
+
+class Detection {
+  final String label;
+  final double confidence;
+  final List<double>? box;
+
+  const Detection({
+    required this.label,
+    required this.confidence,
+    this.box,
+  });
+
+  factory Detection.fromJson(Map<String, dynamic> json) {
+    final boxRaw = json['box'];
+    return Detection(
+      label: json['label']?.toString() ?? 'object',
+      confidence: ((json['confidence'] as num?)?.toDouble()) ?? 0.0,
+      box: boxRaw is List
+          ? boxRaw.whereType<num>().map((e) => e.toDouble()).toList()
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'confidence': confidence,
+        'box': box,
+      };
+}
+
+/// Advisory learned-priority estimate. Must always render next to its honest
+/// note ("prototype") and never replace the rule-based [Issue.priority].
+class PriorityModelInfo {
+  final double? score;
+  final String? label;
+  final String? model;
+  final String? honestNote;
+  final Map<String, dynamic>? explanation;
+
+  const PriorityModelInfo({
+    this.score,
+    this.label,
+    this.model,
+    this.honestNote,
+    this.explanation,
+  });
+
+  factory PriorityModelInfo.fromJson(Map<String, dynamic> json) {
+    return PriorityModelInfo(
+      score: (json['score'] as num?)?.toDouble(),
+      label: json['label']?.toString(),
+      model: json['model']?.toString(),
+      honestNote: json['honest_note']?.toString(),
+      explanation: json['explanation'] is Map<String, dynamic>
+          ? json['explanation'] as Map<String, dynamic>
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'score': score,
+        'label': label,
+        'model': model,
+        'honest_note': honestNote,
+        'explanation': explanation,
+      };
 }
 
 double? _toDouble(dynamic value) => (value as num?)?.toDouble();
