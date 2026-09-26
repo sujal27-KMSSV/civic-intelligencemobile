@@ -215,6 +215,50 @@ rule in `backend/issues/civic.py`, which bands correctly with
 5. **No physical-device or browser-DOM E2E** against production.
 6. Flutter analysis reports 2 info-level lints in a test file.
 
+### Verified production limitations (measured, not assumed)
+
+These were confirmed by direct inspection of the live API during the final
+acceptance audit. They are recorded here so nothing is overstated to a judge.
+
+1. **All 28 report images return HTTP 404.** `render.yaml` declares no
+   persistent disk, so `MEDIA_ROOT` (`backend/config/settings.py`) lives on the
+   container filesystem and was discarded by the redeploy. Issue rows and their
+   derived metadata survive in PostgreSQL; the image bytes do not. Newly
+   submitted reports render normally until the next API redeploy. The remedy is
+   infrastructure, not code: a Render persistent disk (paid) or switching
+   `MEDIA_STORAGE_BACKEND` to S3/R2 with credentials.
+2. **The 28 rows are E2E/manual-test artifacts, not real civic reports.** The
+   stored media filenames are the test suite's own `e2e_<epoch_ms>.png` and the
+   descriptions and coordinates match files under `integration_test/`. Only ids
+   56 and 60 are consistent with genuine physical-device submissions. Do not
+   describe the existing rows as collected civic data.
+3. **27 of 28 rows have an empty `address`.** The Flutter client reverse-geocodes
+   an address for display but never includes it in the multipart request body,
+   while the model, serializer and `REPORTER_EDITABLE_FIELDS` all accept it.
+4. **26 of 28 rows have `priority: 0.0`, `priority_label: "low"` and no
+   `priority_reasons`.** `run_analysis` executes at creation time, and those rows
+   predate the current engine; only ids 56 and 60 (created by the current build)
+   show explainable priority. The dashboard's priority column therefore looks
+   empty for historical rows.
+5. **No row carries computer-vision output.** 27 rows have `vision: {}` and one
+   has `{"status": "not_analyzed"}`. This is the honest fallback, because the AI
+   sidecar is intentionally not provisioned — no detection is ever fabricated.
+6. **Master id 4 is flagged `duplicate: true` although it is a cluster root**
+   (`duplicate_of: null`, `cluster_size: 11`). Summing the `duplicate` flag
+   yields 15 supporting reports where 14 exist. The underlying cluster
+   arithmetic is otherwise exact: `19 = 5 masters + 14 children`, and the
+   collapsed feed returns 14 roots.
+7. **The Authority SPA reads `vision.objects` / `vision.summary`, but the backend
+   writes `vision.detections` / `vision.classifier_labels`**
+   (`backend/issues/civic.py:562-563`, asserted by `tests_ai.py`). The dashboard's
+   image-analysis panel can therefore never display a result. The error direction
+   is safe — it under-claims instead of inventing output — and it is currently
+   invisible because no row has CV output at all. The Flutter app reads the
+   correct keys.
+8. **No `onError` fallback exists on any `<img>` in the Authority SPA**
+   (`RecentReports.tsx:60`, `IssueDetailPage.tsx:133`, `ResolutionPanel.tsx:87-88`),
+   so the 404s from item 1 render as browser broken-image icons.
+
 ## 10. Deployment complete
 
 All phases finished and verified on 2026-09-26:

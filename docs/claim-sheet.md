@@ -12,7 +12,7 @@ Honesty contract: if something is not implemented it is marked `BLOCKED` /
 | 2 | Duplicate reports are consolidated into a master issue (cluster) | IMPLEMENTED | `civic.py::run_analysis`; `test/issue_cluster_parsing_test.dart`; live `/api/issues/` master cards |
 | 3 | Duplicate consolidation is explainable (per-signal evidence) | IMPLEMENTED | `duplicate_similarity_score` → `analysis["duplicate"]["evidence"]`; UI "Consolidated under Issue #id" |
 | 4 | Priority is rule-based and explainable (0–100 + reasons) | IMPLEMENTED | `civic.py::score_priority`; `PriorityChip`; `report_result_screen_test.dart` |
-| 5 | AI sidecar (YOLOv8n COCO, resnet18, mobilenet embeddings) runs **real** inference with **exact model provenance** in `vision` | IMPLEMENTED | `ai_service/` + `tests/test_api.py` 9/9; payload stores model names; `docs/ai.md` |
+| 5 | AI sidecar (YOLOv8n COCO, resnet18, mobilenet embeddings) runs **real** inference with **exact model provenance** in `vision` | IMPLEMENTED | `ai_service/` + `tests/test_api.py` 11/11; payload stores model names; `docs/ai.md` |
 | 6 | ML priority is **advisory**; rule priority stays authoritative | IMPLEMENTED (honest) | `vision.priority_model` + `honest_note: prototype`; `engine_honest_label`; `docs/priority-model.md` (MAE 0.827, R² 0.9946 on synthetic rule labels) |
 | 7 | Hotspots computed from real open-issue data | IMPLEMENTED | `cluster_hotspots`; live `/api/hotspots/` 200 with aggregates |
 | 8 | Department routing is deterministic | IMPLEMENTED | `DEPARTMENT_BY_CATEGORY`; tests |
@@ -23,7 +23,7 @@ Honesty contract: if something is not implemented it is marked `BLOCKED` /
 | 13 | Dark mode / system appearance | IMPLEMENTED | `appearance_provider.dart`; `test/appearance_test.dart` |
 | 14 | PostGIS neighbourhood search is genuine `ST_DWithin` when the DB supports it, otherwise absent (never faked) | IMPLEMENTED+HONEST | `backend/geospat/`; 4 integration tests SKIP when off; `docs/postgis.md` |
 | 15 | Consistent back navigation / deep-link recovery | IMPLEMENTED | commit `ecedaa5`; `navigation_regression_test.dart` |
-| 16 | Two-account + network-failure E2E are self-contained (zero leftovers) | IMPLEMENTED | `integration_test/two_account_e2e_test.dart`, `network_failure_e2e_test.dart` |
+| 16 | Two-account + network-failure E2E clean up after themselves | PARTIAL | Both suites delete their rows on success, but cleanup is not crash-safe: production issue id 42 (`B-E2E-…EDITED-BY-E2E`) survived an interrupted run. The claim "zero leftovers" was **false** and is withdrawn. `integration_test/two_account_e2e_test.dart`, `network_failure_e2e_test.dart` |
 
 ## Engineering claims
 
@@ -33,8 +33,8 @@ Honesty contract: if something is not implemented it is marked `BLOCKED` /
 | 18 | No pending migrations | IMPLEMENTED | `makemigrations --check --dry-run` → "No changes detected"; 0007 applied |
 | 19 | Flutter analyze clean | IMPLEMENTED | 2 pre-existing `info` records in `test/api_client_test.dart:420,437` only |
 | 20 | Flutter unit/widget suite green | IMPLEMENTED | `flutter test` → **171 passing** (incl. vision-parsing + cold-start first-attempt tests) |
-| 21 | AI-service suite green | IMPLEMENTED | `cd ai_service && pytest -q` → **9 passing** (real CPU inference) |
-| 22 | Live prod endpoints verified post-deploy | STALE (session re-check) | `/api/health/` + `/api/issues/` → 200; **`/api/hotspots/` → 404 and payload lacks `priority`/`vision`/`master_id`** ⇒ deployed build is behind HEAD. One manual action: redeploy `main` on Render dashboard, then re-verify. |
+| 21 | AI-service suite green | IMPLEMENTED | `cd ai_service && pytest -q` → **11 passing** (real CPU inference). Count rose from 9 to 11 when the priority band regression tests were added. |
+| 22 | Live prod endpoints verified post-deploy | VERIFIED | `/api/health/` → 200; `/api/issues/` → 200 (28 issues, 32 fields); `/api/hotspots/` → **200**; issue payload carries `priority`, `priority_reasons`, `vision`, `master_id`, `cluster_size`. Deployed build `c28fc2a` is current with the code. See the limitations block below for what production still does **not** show. |
 | 23 | Signed APK + AAB for 1.2.0+6 built and verified | SEE BUILD SECTION | `release/` artifacts + apksigner output |
 | 24 | On-device E2E green on physical device | SEE DEVICE SECTION | requires adb device (none attached this session) |
 | 25 | HEAD == origin/main after final push | SEE GIT SECTION | `git status` / `git log` |
@@ -58,25 +58,49 @@ Honesty contract: if something is not implemented it is marked `BLOCKED` /
   engine v3 (`rule-based-civic-analysis-v3`); `ai.py` graceful client; geospat
   app; **113 OK (skipped=4 PostGIS)**; `makemigrations --check` clean.
 - AI service: torch 2.14.0+cpu / torchvision 0.29.0+cpu / ultralytics 8.4.163
-  on Python 3.14; priority model trained (metrics above); **9/9 pytest**.
+  on Python 3.14; priority model trained (metrics above); **11/11 pytest**.
 - Flutter: v1.2.0+6 — vision/AI-transparency UI (details + report result),
   VisionInfo/PriorityModelInfo parsing; `issue.dart` merge repair; 6 new tests →
   **171 passing**; analyze clean.
 - Commits: `ec26470` (AI+engine v3), `0ce4a1e` (geospat), `9f38a6f` (docs),
   `ebbf559` (authority analytics).
-- Live prod smoke (re-checked this session): `/api/health/` → 200, `/api/issues/` → 200
-  (27 issues), but `/api/hotspots/` → **404** and the payload carries no
-  `priority`/`vision`/`master_id`/`cluster_size`. The running deployment is an
-  older build. **REQUIRED manual action before the demo:** on the Render
-  dashboard trigger a manual deploy of `main` for `civic-intelligence-api`,
-  then re-run the smoke: `/api/health/`, `/api/issues/`, `/api/hotspots/`,
-  `/api/authority/hotspots/` → 200 and an issue payload containing `priority`,
-  `vision`, `master_id`, `cluster_size`.
+- Live prod smoke (re-verified after the controlled redeploy, deploy `dep-das4d8bbc2fs7399gb00`,
+  live on `c28fc2a`): `/api/health/` → 200, `/api/issues/` → 200 (28 issues, 32 fields),
+  `/api/hotspots/` → **200**, and the payload carries `priority`, `priority_reasons`,
+  `vision`, `master_id`, `cluster_size`. The earlier "running build is behind HEAD" note
+  is resolved; **no manual action is outstanding.**
+
+### What production does NOT currently show (verified, disclose before the demo)
+
+These are real, measured limitations — not unverified risks:
+
+1. **All 28 report images return HTTP 404.** `render.yaml` defines no persistent disk, so
+   `MEDIA_ROOT` lives on the container filesystem and was discarded by the redeploy. The
+   rows and their metadata survive in Postgres; the image bytes do not. Newly submitted
+   reports render normally *until the next API redeploy*.
+2. **The 28 issues are E2E/manual-test artifacts, not real civic reports.** Media filenames
+   are the test suite's own `e2e_<epoch_ms>.png` and the descriptions/coords match
+   `integration_test/`. Only ids 56 and 60 look like genuine device submissions
+   (Android-MediaStore filenames, Ghaziabad coordinates).
+3. **27 of 28 rows have an empty `address`** — the Flutter client computes a reverse-geocoded
+   address but never sends it in the multipart body (`api_client.dart`), so only device-level
+   test data carries one.
+4. **26 of 28 rows have `priority: 0.0`, `priority_label: "low"` and no `priority_reasons`.**
+   `run_analysis` executes at creation time, and these rows predate the current engine. Only
+   ids 56 and 60 (created by the current build) show explainable priority. The dashboard's
+   priority intelligence therefore looks empty for historical rows.
+5. **No row has any computer-vision output.** 27 rows carry `vision: {}` and one carries
+   `{"status": "not_analyzed"}`; the AI sidecar is not deployed, by design and by cost.
+   The system reports this honestly and never fabricates detections.
+6. **Master id 4 is flagged `duplicate: true` while being a cluster root** with
+   `duplicate_of: null`. A counter that sums the `duplicate` flag reports **15**
+   supporting reports when **14** exist (the real number, and the cluster maths
+   `19 = 5 masters + 14 children`, is otherwise exact).
 
 ## What a judge should actually run
 
 ```
 cd backend && .\.venv\Scripts\python.exe manage.py test      # 113 OK (4 PostGIS skips, explained)
-cd ai_service && .\.venv\Scripts\python.exe -m pytest -q     # 9 OK, real models
+cd ai_service && .\.venv\Scripts\python.exe -m pytest -q     # 11 OK, real models
 flutter analyze; flutter test                                # clean + 171
 ```
