@@ -1,7 +1,7 @@
 # FINAL DEPLOYMENT REPORT — FixMyGrid (Civic Intelligence)
 
-**Status: production prototype DEPLOYED, with one pending API redeploy.**
-Last updated: 2026-09-26 (UTC)
+**Status: PRODUCTION DEPLOYED AND VERIFIED.**
+Last updated: 2026-09-26 22:35 UTC
 
 ---
 
@@ -9,7 +9,7 @@ Last updated: 2026-09-26 (UTC)
 
 | What | URL | Verified |
 | --- | --- | --- |
-| GitHub repository | https://github.com/sujal27-KMSSV/civic-intelligencemobile | yes — `main` @ `29719b0` |
+| GitHub repository | https://github.com/sujal27-KMSSV/civic-intelligencemobile | yes — `main` @ `c28fc2a` |
 | Django API | https://civic-intelligence-api.onrender.com | yes — `/api/health/` → `200 {"status":"ok"}` |
 | Authority Admin | https://civic-intelligence-authority.onrender.com | yes — `/`, `/login`, `/issues/123` all `200` HTML |
 
@@ -17,16 +17,31 @@ Last updated: 2026-09-26 (UTC)
 
 | Service | Render type | State | Commit |
 | --- | --- | --- | --- |
-| `civic-intelligence-api` | `web_service` (Docker, `backend/`, free) | **live** | `b2cb9fe` (pre-existing deploy) |
-| `civic-intelligence-authority` | `static_site` (`authority-web/`, free) | **live** | `29719b0` |
-| `civic-intelligence-ai` | not created | intentionally not provisioned — it is a **paid** service and the API does not need it | — |
+| `civic-intelligence-api` | `web_service` (Docker, `backend/`, free) | **live** | `c28fc2a` — deploy `dep-das4d8bbc2fs7399gb00` |
+| `civic-intelligence-authority` | `static_site` (`authority-web/`, free) | **live** | `825533f` — deploy `dep-das3iqojo6nc73a2hnf0` |
+| `civic-intelligence-ai` | not created | intentionally not provisioned — a **paid** service the API does not require | — |
 
-The Admin static site was created and built successfully from this repository.
-The API is live and serving, but is still running its previous deploy.
+The API redeploy `dep-das4d8bbc2fs7399gb00` was triggered manually and reached
+`live` at `2026-09-26T22:27:57Z`. It is the first deploy running with a
+complete environment, which is what activated CORS.
 
-**Pending:** the API must be redeployed to activate the new CORS setting (see §4).
-The API's auto-deploy was switched **off** on purpose so that no push can deploy
-an incomplete configuration. Re-enable it after the redeploy is verified.
+API auto-deploy remains **off** deliberately, so an accidental push can never
+deploy an unverified configuration.
+
+### Incident and recovery (recorded for honesty)
+
+An earlier environment update used Render's `PUT /services/{id}/env-vars`,
+which **replaces the whole set** rather than merging. That removed
+`DB_PASSWORD`, `SECRET_KEY` and 10 other variables from the service
+configuration.
+
+- No deploy was triggered during the incident, so the running API was never
+  affected.
+- Recoverable variables were restored; `SECRET_KEY` was regenerated (which
+  invalidates existing signed sessions but not DRF tokens).
+- `DB_PASSWORD` is not exposed by any Render API, so it was entered once in the
+  Render dashboard by the account owner.
+- The service was then redeployed and verified.
 
 ## 3. Admin build verification
 
@@ -42,10 +57,10 @@ an incomplete configuration. Re-enable it after the redeploy is verified.
   `index-*.js` is React DOM's own internal
   `window.location.href || "http://localhost"` environment probe, not an API URL.
 
-## 4. CORS
+## 4. CORS — ACTIVE AND VERIFIED
 
-Configured value on the API service (scheme + host only, comma-separated, no
-trailing slash, no path, no `:443`, no wildcard):
+Live value on the API service (comma-separated, exact scheme + host, no
+trailing slash, no path, no wildcard):
 
 ```text
 CORS_ALLOW_ALL_ORIGINS=False
@@ -53,28 +68,50 @@ CORS_ALLOWED_ORIGINS=https://civic-intelligence-api.onrender.com,https://civic-i
 CSRF_TRUSTED_ORIGINS=https://civic-intelligence-api.onrender.com,https://civic-intelligence-authority.onrender.com
 ```
 
-- The pre-existing legitimate origin (the API's own host) was **preserved**.
-- Django reads CORS at process start, so the API must be **redeployed** for this
-  to take effect. Until then the preflight returns `200` with an empty
-  `Access-Control-Allow-Origin`, and the Admin cannot call the API from a browser.
-- The same values are pinned in `render.yaml` so a fresh deploy reproduces them.
+The API's own pre-existing origin was preserved alongside the Admin origin, so
+the configuration contains the two legitimate origins and nothing else.
+
+Measured against the live service with an independent HTTP client
+(`curl`), 3 rounds, cache-busted URLs:
+
+| `Origin` sent | HTTP | `Access-Control-Allow-Origin` | Verdict |
+| --- | --- | --- | --- |
+| `https://civic-intelligence-authority.onrender.com` | 200 | exactly that origin | **PASS** |
+| `https://evil.example` | 200 | *absent* | **PASS — refused** |
+| `https://civic-intelligence-authority.onrender.com.evil.example` | 200 | *absent* | **PASS — refused** |
+| `http://civic-intelligence-authority.onrender.com` (wrong scheme) | 200 | *absent* | **PASS — refused** |
+| `https://civic-intelligence-api.onrender.com` | 200 | exactly that origin | **PASS** |
+
+Preflight response also advertises
+`allow-methods: DELETE, GET, OPTIONS, PATCH, POST, PUT`,
+`allow-headers: …, authorization, …` and `vary: origin`.
+
+One nuance worth recording: an `Origin` **with** a trailing slash is treated by
+`django-cors-headers` as equivalent to the slash-less form and echoed back with
+its slash. Browsers never send an `Origin` header with a trailing slash, path or
+credentials, so this is not reachable in practice; the *configured value*
+itself contains no trailing slash.
 
 ## 5. Production verification performed
 
 | Check | Result |
 | --- | --- |
-| `GET /api/health/` | PASS — `200 {"status":"ok"}` |
-| Admin `/`, `/login`, `/issues/123`, `/map`, `/analytics`, nested routes | PASS — `200` HTML (SPA rewrite works) |
+| `GET /api/health/` | PASS — `200 {"status":"ok"}`, served by gunicorn |
+| **Database connectivity on the new container** | PASS — `GET /api/issues/?collapse=0` → `200`, **28 rows**, **32 fields**, `priority_label` and `priority_reasons` present |
+| Independent DB path | PASS — `GET /api/hotspots/` → `200` |
+| CORS preflight, Admin origin | PASS — `200`, ACAO exactly the Admin origin |
+| CORS preflight, `https://evil.example` | PASS — no ACAO granted |
+| CORS lookalike subdomain / wrong scheme | PASS — no ACAO granted |
+| Admin `/`, `/login`, `/dashboard`, `/issues/123`, `/map`, `/analytics`, nested routes | PASS — `200` HTML (SPA rewrite works) |
 | Admin hashed JS/CSS assets (5 files) | PASS — `200`, correct content types |
-| Missing asset `/assets/<nope>.js` | PASS — `404` (rewrite is not a file catch-all) |
-| `OPTIONS /api/issues/` with the Admin origin | **PENDING** — needs the API redeploy |
-| `OPTIONS /api/issues/` with `https://evil.example` | must return no `Access-Control-Allow-Origin` |
-| Public `GET /api/issues/` | PASS — 28 rows, 32 fields incl. `priority_label`, `priority_reasons`, `priority_model_score`, `vision` |
-| Anonymous `/api/authority/issues/`, `/stats/`, `/hotspots/` | PASS — `401` |
-| Invalid token on `/api/authority/issues/` | PASS — `401` |
-| `GET /api/authority/meta/` | `404` — Admin falls back safely |
-| `GET /api/hotspots/` | PASS — 5 cells |
+| Missing asset `/assets/<missing>.js` | PASS — `404` (rewrite is not a file catch-all) |
+| Deployed bundle API base | PASS — production API URL baked in; no authored `localhost` |
+| Authority `issues/`, `issues/1/`, `issues/1/resolve/`, `stats/`, `hotspots/` anonymous | PASS — **all `401`** |
+| Same routes with an invalid bearer token | PASS — **all `401`** |
 | Public feed does not leak internal assignment | PASS — `assigned_to` / `assigned_at` absent (resolution outcome is intentionally public) |
+| `Host: evil.example` | PASS — `403` (ALLOWED_HOSTS enforced) |
+| `X-Frame-Options` / `X-Content-Type-Options` | PASS — `DENY` / `nosniff` |
+| Privileged staff workflow | **credential-gated** — no legitimate production staff credential is available to the test harness, and no bypass was created |
 
 ## 6. Test summary (this repository, measured)
 
@@ -178,28 +215,30 @@ rule in `backend/issues/civic.py`, which bands correctly with
 5. **No physical-device or browser-DOM E2E** against production.
 6. Flutter analysis reports 2 info-level lints in a test file.
 
-## 10. Remaining blocker — one manual Render action
+## 10. Deployment complete
 
-The API's `DB_PASSWORD` is **still absent** from the Render service
-environment (12 variables present, `DB_PASSWORD` not among them; the service's
-`updatedAt` has not changed since the earlier partial write, so a UI save did
-not persist). Consequently:
+All phases finished and verified on 2026-09-26:
 
-- the API is **not** redeployed; it still serves the previous healthy deploy
-  `b2cb9fe` on its already-loaded configuration
-- CORS is configured in Render but **inactive** — Django reads it at process
-  start, so the Admin cannot yet call the API from a browser
-- API auto-deploy is deliberately **off** so no push can deploy an incomplete
-  configuration
+1. `DB_PASSWORD` restored in the Render dashboard by the account owner (it is
+   not retrievable through any Render API).
+2. Environment re-verified: 13/13 required variables present, no secret printed
+   or committed.
+3. Controlled manual redeploy `dep-das4d8bbc2fs7399gb00` → `live` at
+   `2026-09-26T22:27:57Z`, commit `c28fc2a`.
+4. Health, database connectivity, CORS (both directions), authority
+   authorization and the Admin SPA all verified against the live services.
 
-To finish, add **only** `DB_PASSWORD` to the API service environment in the
-Render dashboard, then trigger one deploy. The password is not retrievable via
-the Render API (managed Postgres is not exposed by the public API), which is
-why it has to be entered in the UI rather than automated.
+API auto-deploy is intentionally left **off** so that no future push can deploy
+an unverified environment. Re-enabling it is a one-click change in the Render
+dashboard once you are comfortable with that trade-off.
 
-After that deploy the two checks that close this out are:
+### Deployment flow as delivered
 
-1. `OPTIONS /api/issues/` with `Origin: https://civic-intelligence-authority.onrender.com`
-   → `200` and `Access-Control-Allow-Origin: https://civic-intelligence-authority.onrender.com`
-2. the same request with `Origin: https://evil.example` → no
-   `Access-Control-Allow-Origin`
+```
+Citizen app (Flutter)
+   -> HTTPS/JSON
+Django + DRF API  ->  PostgreSQL (28 live issues, verified)
+   -> optional AI/CV sidecar (not deployed: reports not_analyzed honestly)
+   -> deterministic duplicate intelligence + explainable priority
+Authority Admin (React SPA)  ->  same API, same database
+```
