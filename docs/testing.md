@@ -30,11 +30,11 @@ cd ai_service
 
 Real model inference (embed/classify/analyze/priority) + 503/400 error paths.
 
-## Flutter — unit/widget (164 tests)
+## Flutter — unit/widget (171 tests)
 
 ```powershell
 flutter analyze          # clean except 2 pre-existing infos
-flutter test             # 164 passing
+flutter test             # 171 passing
 ```
 
 Notable suites: `test/appearance_test.dart` (dark/light/system persistence),

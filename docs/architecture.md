@@ -1,4 +1,4 @@
-# System Architecture (v1.1.0)
+# System Architecture (v1.2.0)
 
 This document describes the **actual** system, not an aspirational one. Every
 component below exists in this repository and is covered by tests.

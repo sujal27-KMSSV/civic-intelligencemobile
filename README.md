@@ -6,8 +6,8 @@ de-duplicated, prioritized and department-routed actions for local
 authorities — using **honest, deterministic, explainable rules** rather than
 untrained black-box "AI" claims.
 
-Version **1.1.0** — Flutter mobile app + Django REST backend + light authority
-web dashboard.
+Version **1.2.0** — Flutter mobile app + Django REST backend + light authority
+web dashboard + optional FastAPI AI sidecar.
 
 > **Read this first — what this project is and is not.**
 > - The civic-intelligence layer is a **rule-based engine** (GPS proximity,
@@ -31,20 +31,21 @@ docs/          Honest technical documentation + claim sheet
 release/       Signed release artifacts + hardening report
 ```
 
-## What is implemented (v1.1.0)
+## What is implemented (v1.2.0)
 
 | Capability | Where | Evidence |
 | --- | --- | --- |
-| Citizen reporting (photo + location + category) | Flutter + `POST /api/issues/` | E2E, 160 Flutter tests |
-| Duplicate intelligence (GPS + category + text + image), cluster master/supporting model | `backend/issues/civic.py` | 89 Django tests |
+| Citizen reporting (photo + location + category) | Flutter + `POST /api/issues/` | E2E, 171 Flutter tests |
+| Duplicate intelligence v3 (GPS + category + text + image + embedding), cluster master/supporting model | `backend/issues/civic.py` | 113 Django tests |
 | Explainable priority 0–100 with reasons | `civic.py::score_priority` | tests + unit suite |
 | Severity + department routing | `civic.py` | tests |
-| Hotspots (public + authority heat-map cells) | `/api/hotspots/`, `/api/authority/hotspots/` | live verified |
+| Hotspots (public + authority heat-map cells) | `/api/hotspots/`, `/api/authority/hotspots/` | IMPLEMENTED — re-verify live after redeploy |
 | Collapsed public feed (master issues; `?collapse=0` for all) | `issues/views.py` | tests |
 | My Reports isolation, edit/delete gated by server flags | serializers `can_edit`/`can_delete` | E2E |
 | Idempotent submission (`client_request_id`), 10-min delete window | `issues/views.py` | tests |
 | Resolution verification (honest BEFORE/AFTER image similarity) | `civic.py::image_similarity` | tests |
 | Dark mode + system appearance | Flutter `appearance_provider` | tests |
+| Vision/AI transparency (real YOLOv8n COCO, CNN embeddings, advisory ML priority, exact model provenance) | `ai_service/` + issue `vision` field | 9 AI tests; `docs/ai.md` |
 | E2E suites that self-register accounts and leave zero leftovers | `integration_test/` | on-device |
 
 ## Become honest — our claim sheet
@@ -67,7 +68,7 @@ copy .env.example .env        # set SECRET_KEY, DEBUG=True for local
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver    # http://127.0.0.1:8000
-python manage.py test         # 89 tests
+python manage.py test         # 113 tests (4 PostGIS SKIP on non-GIS DB)
 ```
 
 ### Mobile
@@ -75,7 +76,7 @@ python manage.py test         # 89 tests
 ```powershell
 flutter pub get
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
-flutter test                  # 160 tests
+flutter test                  # 171 tests
 ```
 
 ### E2E on a device (needs the production backend running)

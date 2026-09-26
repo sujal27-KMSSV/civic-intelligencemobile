@@ -1,4 +1,4 @@
-# API Reference (v1.1.0)
+# API Reference (v1.2.0)
 
 Base URLs: local `http://127.0.0.1:8000` · production `https://civic-intelligence-api.onrender.com`
 

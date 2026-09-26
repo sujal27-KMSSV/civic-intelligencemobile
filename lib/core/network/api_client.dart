@@ -34,8 +34,12 @@ class ApiClient {
   final Duration _timeout;
   final AuthStorage _authStorage;
 
-  /// Timeout used on the retry attempt of read requests, so a cold server
-  /// (Render first boot after idle, ~30-60s) can answer before we give up.
+  /// Cold-start budget given to every safe-to-retry request (reads, auth and
+  /// idempotent submissions). Render's free containers sleep after ~15 minutes
+  /// of idle traffic and take ~30-60s to boot again, so the FIRST attempt must
+  /// already be able to wait out that boot — a short first attempt would time
+  /// out before the container answers and then waste the retry on the same
+  /// boot. Visibly longer than [ApiClient._timeout] on purpose.
   static const Duration _coldStartTimeout = Duration(seconds: 60);
 
   /// Called when the server responds with HTTP 401.
@@ -527,9 +531,9 @@ class ApiClient {
   ///
   /// Used only for idempotent writes (login, register, multipart submit with a
   /// `client_request_id`) and reads (GET): re-issuing those is always safe.
-  /// The retry runs with [retryTimeout] (or [_coldStartTimeout]) so a cold
-  /// backend container (e.g. Render first boot, ~30-60s) has time to answer
-  /// without the user seeing an error.
+  /// Both the first attempt and the retry run with the [retryTimeout] (or
+  /// [_coldStartTimeout]) budget so a cold backend container (e.g. Render first
+  /// boot, ~30-60s) can answer without the user seeing an error.
   Future<T> _guardWithRetry<T>(
     Future<http.Response> Function() request,
     FutureOr<T> Function(http.Response) handle, {
@@ -539,8 +543,13 @@ class ApiClient {
     Duration? timeout,
     Duration? retryTimeout,
   }) async {
+    // The first attempt also gets the cold-start budget: the server may be
+    // booting (Render free sleeps when idle) and would otherwise time out at
+    // [_timeout] before it answers, leaving the single retry to absorb the
+    // whole cold start.
+    final firstTimeout = timeout ?? _coldStartTimeout;
     try {
-      return await _guard(request, handle, timeout: timeout);
+      return await _guard(request, handle, timeout: firstTimeout);
     } on NetworkException catch (e) {
       if (!e.isRetryable) rethrow;
       debugNet(
@@ -555,7 +564,7 @@ class ApiClient {
         return await _guard(
           request,
           handle,
-          timeout: retryTimeout ?? timeout ?? _coldStartTimeout,
+          timeout: retryTimeout ?? firstTimeout,
         );
       } on NetworkException {
         debugNet(

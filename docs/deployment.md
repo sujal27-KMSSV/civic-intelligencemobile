@@ -54,8 +54,12 @@ python manage.py showmigrations issues           -> 0007 applied
 
 ## Known production constraints (honest)
 
-- **Cold start:** free tier can take seconds; first request may time out.
-  Do not weaken the client timeouts to "fix" this; retry is built into the app.
+- **Cold start:** free tier sleeps after ~15 min idle and takes ~30-60s to
+  boot again. The client's safe-to-retry requests (reads, auth, idempotent
+  submissions) give BOTH the first attempt and the single retry a 60 s
+  cold-start budget, so a sleeping instance is absorbed without the user
+  seeing an error; a genuinely unreachable backend still fails cleanly after
+  ~2 min with a clear retryable message (`lib/core/network/api_client.dart`).
 - **PostGIS** — conditionally available. Render's *free* Postgres has no
   PostGIS extension, so `GEOSPAT_ENABLED=0` by default on the demo fleet and
   the geospat route is unmounted; on a real PostGIS DB enable it

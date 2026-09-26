@@ -238,6 +238,29 @@ void main() {
     expect(issue.id, '42');
   });
 
+  test('a slow cold-starting server succeeds on the FIRST attempt', () async {
+    // Regression: safe-to-retry requests used the short [_timeout] (default
+    // 20s) on their first attempt, so a Render free container booting for
+    // ~30-60s used to time out, then needed the retry. The first attempt must
+    // already wait out a cold start.
+    var attempts = 0;
+    final client = MockClient((request) async {
+      attempts++;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      return _jsonResponse([], 200);
+    });
+
+    final api = ApiClient(
+      client: client,
+      authStorage: InMemoryAuthStorage(),
+      timeout: const Duration(milliseconds: 50),
+    );
+
+    final issues = await api.fetchIssues();
+    expect(attempts, 1, reason: 'first attempt must tolerate the cold start');
+    expect(issues, isEmpty);
+  });
+
   test('fetchMyReports parses a list of flat issue objects', () async {
     final client = MockClient((request) async {
       expect(request.method, 'GET');

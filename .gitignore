@@ -100,3 +100,10 @@ ai_service/.pytest_cache/
 
 # Private release assets (keystore backups, signing properties) — never share
 release/private/
+
+# Backup recovery point + any signing material anywhere under it — untracked
+backup/
+
+# Release binaries stay untracked (verified artifact convention)
+release/*.apk
+release/*.aab
