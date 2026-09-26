@@ -84,7 +84,11 @@ CSRF_TRUSTED_ORIGINS=https://civic-intelligence-api.onrender.com,https://civic-i
 | Migrations | `makemigrations --check --dry-run` | No changes detected |
 | Flutter | `flutter test` | **171/171 passed** |
 | Flutter static analysis | `flutter analyze` | 2 info-level `prefer_const_constructors` lints in a test file; no errors/warnings |
-| AI sidecar | `python -m pytest tests -q` | **9/9 passed** (torch 2.14.0+cpu, torchvision 0.29.0+cpu) |
+| AI sidecar | `python -m pytest tests -q` | **11/11 passed** (torch 2.14.0+cpu, torchvision 0.29.0+cpu, ultralytics 8.4.163) |
+| Admin | `tsc -b` + `npm run build` | clean, exit 0 both |
+
+The AI suite is 11, not the original 9: two regression tests were added when
+the priority label-band bug was fixed (see §8).
 
 ## 7. Citizen artifacts (preserved, not rebuilt)
 
@@ -106,13 +110,57 @@ itself despite the extension). Release binaries are intentionally untracked.
   embedding cosine similarity. It is auditable and reproducible, not a trained
   black box.
 - **Priority** is a transparent weighted/rule-based score (0–100) with
-  per-factor reasons, not a learned model.
-- The optional `ai_service` sidecar contains **real** torch code (ResNet18/
-  MobileNet-style CNN embeddings, YOLOv8n COCO detection) and is unit-tested
-  (9 tests), but it is **not deployed** on the free tier. When
+  per-factor reasons. This rule is authoritative for the `priority_label` the
+  Citizen app and Authority Admin display.
+- The optional `ai_service` sidecar contains **real** torch code and is unit
+  tested (11 tests). It is **not deployed** on the free tier. When
   `AI_SERVICE_URL` is empty the API honestly reports
   `vision = {"status": "not_analyzed", "service": null}` and the UI says so.
 - No claim is made that the software prevents the civic problems it addresses.
+
+### 8a. Custom FixMyGrid YOLO detector — evaluated, deliberately NOT trained
+
+A purpose-specific detector was scoped and **not** built, because of data:
+
+- the repo holds **one** real photograph (a single citizen upload) and **zero**
+  annotation files; `ai_service/datasets/` does not exist;
+- no permissively-licensed civic-defect dataset was usable without uploading
+  private citizen images to a third party.
+
+No dataset was fabricated and no training run is claimed.
+
+A custom model is nonetheless the correct long-term answer, and this was
+measured: on the one available road photo the COCO model returned
+`bird @ 0.39` and ImageNet returned `iron / shovel / great_white_shark`. COCO
+has no civic classes, so generic detection cannot classify civic damage.
+
+**No redesign is needed to adopt one later.** `config.YOLO_MODEL` already reads
+`AI_YOLO_MODEL`, so a checkpoint is added by dropping in a `.pt` file and
+setting that variable — zero code change. See `docs/computer-vision.md`.
+
+### 8b. Priority label-band bug — found, fixed, no production impact
+
+`label_for()` scanned the band table in ascending order and returned the first
+band whose lower bound the score cleared. Since the first band is
+`("low", 0, 30)`, **every** score ≥ 0 returned `"low"`. This also made the
+recorded `label_band_accuracy: 1.0` a tautology — it compared `"low"` to
+`"low"`.
+
+Fixed by scanning with `reversed()` (the table stays low→high for readability)
+in `ai_service/app/services/priority.py` and in
+`ai_service/scripts/train_priority_model.py`. The metric was recomputed against
+the **already-trained** checkpoint on the identical evaluation split; the model
+was not retrained or overwritten.
+
+- honest label-band accuracy: **1.0 → 0.9381**, confusion now confined to
+  adjacent bands
+- MAE 0.827 / RMSE 1.041 / R² 0.9946 were always correct, unchanged
+- 2 regression tests added (AI suite 9 → 11)
+
+**Production impact: none.** The operational `priority_label` comes from the
+rule in `backend/issues/civic.py`, which bands correctly with
+`lo <= score < hi`. The bug only affected the sidecar's diagnostic
+`vision["priority_model"]["label"]`, and the sidecar is not deployed.
 
 ## 9. Known limitations
 
@@ -130,11 +178,28 @@ itself despite the extension). Release binaries are intentionally untracked.
 5. **No physical-device or browser-DOM E2E** against production.
 6. Flutter analysis reports 2 info-level lints in a test file.
 
-## 10. Next step to finish
+## 10. Remaining blocker — one manual Render action
 
-1. Supply the managed-Postgres `DB_PASSWORD` for `civic-intelligence-api`
-   (see the handover note — it is not retrievable through the Render API).
-2. Redeploy the API; confirm `OPTIONS /api/issues/` with the Admin origin
-   returns `Access-Control-Allow-Origin: https://civic-intelligence-authority.onrender.com`.
-3. Confirm `https://evil.example` receives no `Access-Control-Allow-Origin`.
-4. Re-enable auto-deploy on the API.
+The API's `DB_PASSWORD` is **still absent** from the Render service
+environment (12 variables present, `DB_PASSWORD` not among them; the service's
+`updatedAt` has not changed since the earlier partial write, so a UI save did
+not persist). Consequently:
+
+- the API is **not** redeployed; it still serves the previous healthy deploy
+  `b2cb9fe` on its already-loaded configuration
+- CORS is configured in Render but **inactive** — Django reads it at process
+  start, so the Admin cannot yet call the API from a browser
+- API auto-deploy is deliberately **off** so no push can deploy an incomplete
+  configuration
+
+To finish, add **only** `DB_PASSWORD` to the API service environment in the
+Render dashboard, then trigger one deploy. The password is not retrievable via
+the Render API (managed Postgres is not exposed by the public API), which is
+why it has to be entered in the UI rather than automated.
+
+After that deploy the two checks that close this out are:
+
+1. `OPTIONS /api/issues/` with `Origin: https://civic-intelligence-authority.onrender.com`
+   → `200` and `Access-Control-Allow-Origin: https://civic-intelligence-authority.onrender.com`
+2. the same request with `Origin: https://evil.example` → no
+   `Access-Control-Allow-Origin`
