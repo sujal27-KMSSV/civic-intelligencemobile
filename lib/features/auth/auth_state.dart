@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/auth_storage.dart';
 import '../../models/user.dart';
+import '../feed/issue_feed_repository.dart';
+import '../issues/my_reports_provider.dart';
 import 'auth_models.dart';
 import 'auth_repository.dart';
 
@@ -108,6 +110,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
         password: password,
       ));
       state = AsyncData(AuthState.authenticated(response.user));
+      _refreshUserScopedState();
     } catch (e, st) {
       state = AsyncError<AuthState>(e, st);
     }
@@ -121,6 +124,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       final repo = ref.read(authRepositoryProvider);
       final response = await repo.register(request);
       state = AsyncData(AuthState.authenticated(response.user));
+      _refreshUserScopedState();
     } catch (e, st) {
       state = AsyncError<AuthState>(e, st);
     }
@@ -131,6 +135,14 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     final repo = ref.read(authRepositoryProvider);
     await repo.logout();
     state = const AsyncData(AuthState.unauthenticated());
+    _refreshUserScopedState();
+  }
+
+  /// Discards any user-scoped cached state so an account switch can never
+  /// surface another user's data (a fresh fetch happens on the next visit).
+  void _refreshUserScopedState() {
+    ref.invalidate(myReportsProvider);
+    ref.invalidate(issueFeedProvider);
   }
 }
 

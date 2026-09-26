@@ -10,18 +10,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart' show LocationAccuracy;
 import 'package:integration_test/integration_test.dart';
-import 'package:path_provider/path_provider.dart';
 
-/// 1x1 transparent PNG (valid image: readable by Image.file and by Pillow on
-/// the Django side).
-const List<int> _kTinyPng = [
-  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
-  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-  0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
-  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
-  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
-];
+import 'e2e_helpers.dart';
 
 class _FakeMediaService extends MediaService {
   _FakeMediaService(this.file);
@@ -82,11 +72,7 @@ void main() {
     const storage = FlutterSecureStorage();
     await storage.deleteAll();
 
-    final temp = await getTemporaryDirectory();
-    final photo = File(
-      '${temp.path}/e2e_${DateTime.now().millisecondsSinceEpoch}.png',
-    );
-    photo.writeAsBytesSync(_kTinyPng);
+    final photo = await writeValidPhoto();
 
     await tester.pumpWidget(
       ProviderScope(
