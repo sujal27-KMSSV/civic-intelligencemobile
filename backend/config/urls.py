@@ -19,6 +19,12 @@ urlpatterns = [
     path("api/", include("issues.urls")),
 ]
 
+# The PostGIS neighboUrhood search is only routed when the spatial sidecar is
+# genuinely enabled (see settings.POSTGRES_GIS_ENABLED). On other databases
+# the endpoint is absent rather than presenting an emulated answer.
+if settings.POSTGRES_GIS_ENABLED:
+    urlpatterns.append(path("api/geospat/", include("geospat.urls")))
+
 # Serve uploaded media from MEDIA_ROOT in development (via the standard
 # static() helper) and in production (it is a no-op there). On the single
 # application instance this is the direct path; at scale swap storage for a

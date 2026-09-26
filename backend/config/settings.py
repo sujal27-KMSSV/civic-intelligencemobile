@@ -113,6 +113,27 @@ else:
 
 AUTH_USER_MODEL = "accounts.User"
 
+# ---------------------------------------------------------------------------
+# OPTIONAL PostGIS (geospat app). NOT enabled by default: it requires a
+# PostgreSQL server with the PostGIS extension plus the GDAL runtime. When the
+# capability is genuinely present (DB_ENGINE=postgresql + GEOSPAT_ENABLED=1)
+# the "geospat" app registers a real ST_DWithin nearby-search and spatial
+# index; otherwise that app is absent, its endpoint is not routed, and its
+# tests skip. The civic engine's pure-Python haversine duplicate detection /
+# hotspots work identically either way -- this is an honest, detectable
+# degradation, never a mocked PostGIS.
+# ---------------------------------------------------------------------------
+_IS_POSTGRES = os.getenv("DB_ENGINE", "sqlite").strip().lower() == "postgresql"
+POSTGRES_GIS_ENABLED = _IS_POSTGRES and _env_bool("GEOSPAT_ENABLED", False)
+if POSTGRES_GIS_ENABLED:
+    DATABASES["default"].update(
+        {"ENGINE": "django.contrib.gis.db.backends.postgis"}
+    )
+    INSTALLED_APPS += [
+        "django.contrib.gis",
+        "geospat",
+    ]
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
