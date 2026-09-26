@@ -8,4 +8,4 @@ whitenoise==6.12.0
 psycopg[binary]==3.3.5
 # S3/R2-compatible object storage (optional; only exercised when
 # MEDIA_STORAGE_BACKEND=s3 is set — see config/settings.py and docs/deployment).
-django-storages[boto3]==1.15.0
+django-storages[boto3]==1.14.6
