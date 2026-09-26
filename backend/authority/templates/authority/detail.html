@@ -56,8 +56,28 @@
           <li>Severity score: <strong>{{ analysis.severity.score }}</strong> → {{ issue.severity|upper }}</li>
         </ul>
         {% if analysis.duplicate.similarity_score is not None %}
-          <p class="muted" style="margin-bottom:0">Similarity measurement uses explicit rules (Jaccard text overlap, GPS proximity, category match) — not a trained model.</p>
+          <p class="muted" style="margin-bottom:0">Similarity measurement uses explicit rules (Jaccard text overlap, GPS proximity, category match, dHash; plus a real CNN-embedding cosine when the AI sidecar served one) — never a black box.</p>
         {% endif %}
+      </div>
+      {% endif %}
+
+      {% if issue.vision %}
+      <div class="analysis">
+        <strong>AI vision sidecar</strong>
+        <span class="muted">(real models, labelled provenance; optional)</span>
+        <ul style="margin:8px 0 0;padding-left:20px">
+          <li>Status: <strong>{{ issue.vision.status }}</strong>
+            {% if issue.vision.models %}({{ issue.vision.models.embedding }}{% if issue.vision.models.detection %}, {{ issue.vision.models.detection }}{% endif %}){% endif %}
+          </li>
+          {% if issue.vision.classifier_labels %}<li>Classifier (top-5, ImageNet): {{ issue.vision.classifier_labels|join:", " }}</li>{% endif %}
+          {% for d in issue.vision.detections|slice:":5" %}
+            <li>Detected {{ d.label }} ({{ d.confidence|floatformat:2 }})</li>
+          {% endfor %}
+          {% if issue.vision.priority_model %}
+            <li>Advisory ML priority: <strong>{{ issue.vision.priority_model.score }}</strong> ({{ issue.vision.priority_model.label }}) — prototype, not authoritative</li>
+          {% endif %}
+          {% if issue.vision.notes %}<li class="muted">{{ issue.vision.notes|join:" " }}</li>{% endif %}
+        </ul>
       </div>
       {% endif %}
 

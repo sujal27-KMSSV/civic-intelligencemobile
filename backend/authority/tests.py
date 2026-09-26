@@ -70,6 +70,11 @@ class AuthorityApiTests(APITestCase):
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["open"], 1)
         self.assertIn("by_status", body)
+        # Hotspot analytics are real aggregates, not a model.
+        self.assertIn("analytics", body)
+        self.assertIn("hotspot_cells", body["analytics"])
+        self.assertIn("open_age_hours", body["analytics"])
+        self.assertIn("trend_reports", body["analytics"])
 
     def test_issue_list_hides_resolved_by_default(self):
         self._auth()

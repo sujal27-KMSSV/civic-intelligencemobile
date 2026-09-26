@@ -29,6 +29,33 @@
           {% endfor %}
         </table>
       </div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Hotspot analytics <span class="muted">(real data)</span></h3>
+        <table>
+          <tr><th>Cell</th><th style="text-align:right">Reports</th><th style="text-align:right">Priority</th></tr>
+          {% for c in stats.analytics.hotspot_cells %}
+            <tr>
+              <td>{{ c.lat|floatformat:3 }}, {{ c.lon|floatformat:3 }}</td>
+              <td style="text-align:right;font-weight:700">{{ c.report_count }}</td>
+              <td style="text-align:right">{{ c.top_priority }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="muted">No open reports.</td></tr>
+          {% endfor %}
+        </table>
+        <h3 style="margin-top:10px">Workload</h3>
+        <table>
+          <tr><td>Open clusters</td><td style="text-align:right;font-weight:700">{{ stats.analytics.cluster_stats.clusters }}</td></tr>
+          <tr><td>Avg members / cluster</td><td style="text-align:right;font-weight:700">{{ stats.analytics.cluster_stats.avg_members }}</td></tr>
+          <tr><td>Median open age (h)</td><td style="text-align:right;font-weight:700">{{ stats.analytics.open_age_hours.median }}</td></tr>
+          <tr><td>Oldest open (h)</td><td style="text-align:right;font-weight:700">{{ stats.analytics.open_age_hours.oldest }}</td></tr>
+          <tr><td>24h / 48h / 7d reports</td><td style="text-align:right;font-weight:700">{{ stats.analytics.trend_reports.last_24h }} / {{ stats.analytics.trend_reports.last_48h }} / {{ stats.analytics.trend_reports.last_7d }}</td></tr>
+        </table>
+        <p class="muted" style="font-size:12px;margin-top:6px">
+          Hotspot cells come from the same grid algorithm the citizen app heat
+          map uses (open reports only). Never a model — always real counts.
+        </p>
+      </div>
     </div>
 
     <div class="main">
@@ -76,6 +103,21 @@
         .bindPopup(
           "<b>#" + p.id + "</b> " + p.sev.toUpperCase() +
           "<br/>" + p.desc + "<br/><a href='" + p.url + "'>Open</a>"
+        );
+    });
+  var cells = {{ stats.analytics.hotspot_cells|safe }};
+    var topOf = function (arr) { return (arr && arr[0]) ? arr[0][0] : "-"; };
+    cells.forEach(function (c) {
+      L.circle([c.lat, c.lon], {
+        radius: 160,
+        color: "#fff", weight: 2,
+        fillColor: "#7a5af8", fillOpacity: 0.25 + Math.min(0.55, c.report_count * 0.12),
+      })
+        .addTo(map)
+        .bindPopup(
+          "<b>" + c.report_count + " reports</b> in this cell" +
+          "<br/>top category: " + topOf(c.categories) +
+          "<br/>top dep: " + topOf(c.departments)
         );
     });
   </script>

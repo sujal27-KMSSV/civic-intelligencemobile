@@ -122,6 +122,54 @@ def stats() -> dict:
     }
 
 
+def analytics() -> dict:
+    """Hotspot + workload analytics computed from REAL issue data (no models).
+
+    Deliberately small and honest: cells come from the same grid-bucket
+    algorithm the mobile heat map uses; all counters are plain aggregate counts.
+    """
+    from issues import civic as issues_civic
+
+    now = timezone.now()
+    open_qs = Issue.objects.exclude(status__in=["resolved", "rejected"])
+
+    hotspot_cells = issues_civic.cluster_hotspots(Issue.objects.all(), limit=8)
+
+    # Open-report age in hours: median + oldest (points to SLA pressure).
+    open_ages = []
+    for issue in open_qs:
+        if issue.created_at:
+            open_ages.append((now - issue.created_at).total_seconds() / 3600.0)
+    open_ages.sort()
+    open_age_hours = {
+        "count": len(open_ages),
+        "median": round(open_ages[len(open_ages) // 2], 1) if open_ages else None,
+        "oldest": round(open_ages[-1], 1) if open_ages else None,
+    }
+
+    clusters = Issue.objects.filter(duplicate_of__isnull=True)
+    cluster_total = clusters.count()
+    cluster_stats = {
+        "clusters": cluster_total,
+        "avg_members": round(
+            (Issue.objects.count() / cluster_total) if cluster_total else 0.0,
+            2,
+        ),
+        "consolidated_reports": Issue.objects.filter(duplicate=True).count(),
+    }
+
+    return {
+        "hotspot_cells": hotspot_cells,
+        "open_age_hours": open_age_hours,
+        "cluster_stats": cluster_stats,
+        "trend_reports": {
+            "last_24h": Issue.objects.filter(created_at__gte=now - timedelta(hours=24)).count(),
+            "last_48h": Issue.objects.filter(created_at__gte=now - timedelta(hours=48)).count(),
+            "last_7d": Issue.objects.filter(created_at__gte=now - timedelta(days=7)).count(),
+        },
+    }
+
+
 def _bucket_departments(stats_out: dict) -> None:
     qs = Issue.objects.all()
     for dept in (

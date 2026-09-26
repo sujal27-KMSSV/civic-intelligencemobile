@@ -44,6 +44,7 @@ def dashboard_index(request):
         })
 
     d = service.stats_with_departments()
+    d["analytics"] = service.analytics()
     return render(
         request,
         "authority/index.html",

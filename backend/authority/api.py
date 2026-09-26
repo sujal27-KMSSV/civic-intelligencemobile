@@ -121,8 +121,9 @@ def issue_resolve(request, pk):
 @api_view(["GET"])
 @permission_classes([permissions.IsAdminUser])
 def stats(request):
-    """Aggregate counters for the dashboard."""
+    """Aggregate counters + hotspot analytics for the dashboard."""
     data = service.stats_with_departments()
+    data["analytics"] = service.analytics()
     data.pop("_", None)
     return Response(data)
 
