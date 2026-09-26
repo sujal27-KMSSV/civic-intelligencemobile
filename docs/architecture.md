@@ -81,9 +81,13 @@ Issue
 
 See `backend/issues/models.py`, `migrations/0006_*.py`.
 
-## Why no PostGIS / no Live ML in this version
+## PostGIS and live ML — capability boundaries (honest)
 
-- Render's free PostgreSQL does not offer the PostGIS extension and the
-  repository does not assume GDAL; spatial queries therefore use bounding-box
-  + haversine + grid bucketing. See [deployment.md](deployment.md) → *Blocked*.
-- No trained CV/embedding model ships with this repo. See [ai.md](ai.md).
+- **PostGIS** ships as the conditional `geospat` app: genuinely installed
+  (and `/api/geospat/nearby/` routed, tests un-skipped) only when the DB
+  really exposes PostGIS (`DB_ENGINE=postgresql` + `GEOSPAT_ENABLED=1`).
+  Otherwise spatial detection stays bounding-box + haversine + grid
+  bucketing — never an emulated PostGIS. See [postgis.md](postgis.md).
+- **AI inference** lives in the opt-in FastAPI sidecar (`ai_service/`), real
+  pretrained models, gracious to absence. See [ai.md](ai.md),
+  [computer-vision.md](computer-vision.md), [embeddings.md](embeddings.md).

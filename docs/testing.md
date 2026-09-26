@@ -3,33 +3,45 @@
 Everything is green on `main`; see the live numbers in
 [docs/claim-sheet.md](docs/claim-sheet.md).
 
-## Backend — Django (89 tests)
+## Backend — Django (113 tests)
 
 ```powershell
 cd backend
 py -3.14 -m venv .venv
-.\.venv\Scripts\python.exe manage.py test        # 89 OK
+.\.venv\Scripts\python.exe manage.py test        # 113 OK (skipped=4 PostGIS)
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 # "No changes detected"
 ```
 
-Covers: duplicate clustering + hard veto, cluster bookkeeping after delete
-(child removed, root removed), idempotent submission (sequential + concurrent),
-account isolation, PATCH allow-list, delete window, lifecycle transitions,
-resolution verification, hotspots, priority/scoring units, auth (staff vs
-citizen), file validation.
+Covers: duplicate clustering + hard veto + engine-v3 embedding/renormalization,
+cluster bookkeeping after delete (child removed, root removed), idempotent
+submission (sequential + concurrent), account isolation, PATCH allow-list,
+delete window, lifecycle transitions, resolution verification, hotspots,
+priority/scoring units, auth (staff vs citizen), file validation, AI-client
+graceful degradation, geospat helpers + genuine PostGIS integration (skips
+when `POSTGRES_GIS_ENABLED` is off).
 
-## Flutter — unit/widget (160 tests)
+## AI service — FastAPI (9 tests)
+
+```powershell
+cd ai_service
+.\.venv\Scripts\python.exe -m pytest -q         # 9 OK (real CPU inference)
+```
+
+Real model inference (embed/classify/analyze/priority) + 503/400 error paths.
+
+## Flutter — unit/widget (164 tests)
 
 ```powershell
 flutter analyze          # clean except 2 pre-existing infos
-flutter test             # 160 passing
+flutter test             # 164 passing
 ```
 
 Notable suites: `test/appearance_test.dart` (dark/light/system persistence),
 `test/issue_cluster_parsing_test.dart` (master/child/cluster payloads),
 `report_result_screen_test.dart` (honest labels: "96% similar", priority card),
-`issue_details_screen_test.dart`, feed/repository/api-client tests.
+`issues_details_screen_test.dart`, `test/navigation_regression_test.dart`
+(back buttons, deep-link recovery), feed/repository/api-client tests.
 
 ## Integration E2E (on-device, real production API)
 

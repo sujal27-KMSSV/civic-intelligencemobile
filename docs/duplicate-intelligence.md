@@ -1,26 +1,36 @@
-# Duplicate Intelligence (engine v2)
+# Duplicate Intelligence (engine v3)
 
-The engine combines four independent, explainable signals into one weighted
-similarity score, then attaches a new report to an existing **cluster**
-(master issue + supporting reports).
+The engine combines up to five independent, explainable signals into one
+weighted similarity score, then attaches a new report to an existing
+**cluster** (master issue + supporting reports). Four signals are pure
+deterministic rules; the fifth (embedding) is a real CNN cosine from the
+optional AI sidecar and is **renormalized away** when it is unavailable.
 
 ## Score
 
 Implemented in `backend/issues/civic.py::duplicate_similarity_score`.
 
 ```text
-score = gps_sim * 0.30
-      + category_match * 0.15
-      + text_sim * 0.25
-      + image_sim * 0.30
+score = gps_sim * 0.24
+      + category_match * 0.10
+      + text_sim * 0.20
+      + image_sim * 0.21
+      + embedding_cosine * 0.25
 ```
 
-| Signal | Computation |
-| --- | --- |
-| `gps` (0.30) | `1 - haversine_km(lat1,lon1,lat2,lon2)*1000 / 120.0` |
-| `category` (0.15) | `1.0` if equal else `0.0` |
-| `text` (0.25) | Jaccard over word tokens of the free-text descriptions |
-| `image` (0.30) | `1 - Hamming(dHash64) / 64` when both photos decodable |
+| Signal | Computation | Honest label |
+| --- | --- | --- |
+| `gps` (0.24) | `1 - haversine_km(lat1,lon1,lat2,lon2)*1000 / 120.0` | `gps` |
+| `category` (0.10) | `1.0` if equal else `0.0` | `category` |
+| `text` (0.20) | Jaccard over word tokens of the free-text descriptions | `text` |
+| `image` (0.21) | `1 - Hamming(dHash64) / 64` when both photos decodable | `image` |
+| `embedding` (0.25) | cosine of L2-normalised `mobilenet_v3_small` embeddings | `embedding` |
+
+Weights are configurable via `settings.CIVIC_DUPLICATE_WEIGHTS` (env
+`W_GPS`/`W_CATEGORY`/`W_TEXT`/`W_IMAGE`/`W_EMBEDDING`). When the embedding
+signal is missing (`None`) **and/or** the second image is absent, those weights
+are dropped and the remainder are renormalized to sum 1 — a missing AI signal
+never silently lowers a similarity score (`docs/ai.md`, `docs/embeddings.md`).
 
 **Hard veto:** if the two locations are more than `DUPLICATE_RADIUS_M = 120 m`
 apart the score is 0 regardless of text/photo — a location is required for

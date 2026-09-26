@@ -1,4 +1,5 @@
-# Render Blueprint — one-click deploy for Civic Intelligence API.
+# Render Blueprint — one-click deploy for Civic Intelligence.
+# Django API (backend/) + optional FastAPI AI sidecar (ai_service/).
 # See backend/.env.production.example for every variable.
 services:
   - type: web
@@ -36,3 +37,26 @@ services:
         value: "False"
       - key: CORS_ALLOWED_ORIGINS
         sync: false # https://<your-domain>
+      # Point at the sidecar service below when you run it. Empty (default) =
+      # rule-based only, exactly like v2. NOTE: Render's free 512 MB plan
+      # cannot host torch, so leave this unset on the demo fleet.
+      - key: AI_SERVICE_URL
+        sync: false # https://civic-intelligence-ai.onrender.com
+      - key: AI_SERVICE_TIMEOUT
+        value: "4"
+      # Genuine PostGIS only: free-tier Render Postgres has no PostGIS
+      # extension, so keep GEOSPAT_ENABLED=0 here. See docs/postgis.md.
+      - key: GEOSPAT_ENABLED
+        value: "False"
+
+  # Optional AI sidecar (ai_service/). Skip this service on free tier --
+  # inference needs ~2 GB RAM. The API degrades to rule-based without it.
+  - type: web
+    name: civic-intelligence-ai
+    runtime: docker
+    rootDir: ai_service
+    plan: standard # recommended; free is too small for torch
+    healthCheckPath: /health
+    envVars:
+      - key: AI_MODEL_DIR
+        value: /app/artifacts
