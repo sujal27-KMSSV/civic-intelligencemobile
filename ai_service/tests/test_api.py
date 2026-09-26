@@ -135,3 +135,45 @@ def test_priority_503_when_model_missing(monkeypatch):
         json={"severity": "high", "duplicate_count": 3, "age_hours": 10},
     )
     assert resp.status_code == 503
+
+
+def test_label_bands_are_not_all_low():
+    """Regression: bands are stored low->high, so label_for must scan in reverse.
+
+    Scanning forward returned the first band ("low", lo=0) for *every* score,
+    which made every issue report priority "low" and made the recorded
+    label_band_accuracy a tautology.
+    """
+    from app.services.priority import label_for
+
+    assert label_for(0.0) == "low"
+    assert label_for(29.9) == "low"
+    assert label_for(30.0) == "medium"
+    assert label_for(54.9) == "medium"
+    assert label_for(55.0) == "high"
+    assert label_for(79.9) == "high"
+    assert label_for(80.0) == "critical"
+    assert label_for(100.0) == "critical"
+    # out-of-range input is clamped, not banded incorrectly
+    assert label_for(-50.0) == "low"
+    assert label_for(1e6) == "critical"
+
+
+def test_priority_endpoint_label_matches_band():
+    """The endpoint's label must agree with the score it returns."""
+    resp = client.post(
+        "/v1/priority",
+        json={
+            "severity": "critical",
+            "duplicate_count": 20,
+            "age_hours": 60.0,
+            "is_master": True,
+        },
+    )
+    if resp.status_code == 503:
+        pytest.skip("priority model artifact missing")
+    assert resp.status_code == 200
+    from app.services.priority import label_for
+
+    assert resp.json()["label"] == label_for(resp.json()["score"])
+    assert resp.json()["label"] != "low"

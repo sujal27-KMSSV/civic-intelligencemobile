@@ -17,9 +17,10 @@
     "mae_points": 0.827,
     "rmse_points": 1.041,
     "r2": 0.9946,
-    "label_band_accuracy": 1.0,
+    "label_band_accuracy": 0.9381,
     "n_train": 6400,
-    "n_test": 1600
+    "n_test": 1600,
+    "label_band_accuracy_note": "Recomputed 2026-09-26 with a fixed band function. The previously recorded 1.0 was a tautology: label_for() scanned the band table in ascending order and returned the first band ('low', lo=0) for every score, so every label was 'low' and always matched. Accuracy is still limited by the fact that the training targets are the rule policy's own scores, not real field data."
   },
   "baseline_score": 39.66913071584334,
   "target": "rule_priority_score_0_100",

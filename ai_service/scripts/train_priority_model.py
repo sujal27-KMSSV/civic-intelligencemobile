@@ -53,7 +53,7 @@ def rule_score(sev_code: int, dup_count: int, age_hours: float, is_master: int) 
 
 
 def label_for(score: float) -> str:
-    for name, lo, _hi in BANDS:
+    for name, lo, _hi in reversed(BANDS):
         if score >= lo:
             return name
     return "low"

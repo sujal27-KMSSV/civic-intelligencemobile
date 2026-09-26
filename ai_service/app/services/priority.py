@@ -34,7 +34,7 @@ def build_features(
 
 def label_for(score: float) -> str:
     s = float(max(0.0, min(100.0, score)))
-    for name, lo, _hi in LABEL_BANDS:
+    for name, lo, _hi in reversed(LABEL_BANDS):
         if s >= lo:
             return name
     return "low"
