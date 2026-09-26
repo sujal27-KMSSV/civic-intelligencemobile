@@ -142,18 +142,46 @@ export interface DuplicateSignals {
 }
 
 /**
- * What a vision-capable deployment reports about one image.
+ * One object the analyzer detected.
  *
- * The backend returns the literal `{status: "not_analyzed", service: null}`
- * when no analyzer is configured. That is the honest "nothing to show" state
- * and the UI must render it as such — never as a detection result.
+ * Mirrors the AI service's `Detection` model: a COCO label, a confidence in
+ * 0..1, and a pixel box. This is a general scene label, never a road-defect
+ * classification.
+ */
+export interface VisionDetection {
+  label?: string;
+  confidence?: number;
+  /** [x, y, w, h] in pixels of the source image. */
+  box?: number[];
+}
+
+/**
+ * What the backend reports about one image, matching `Issue.vision` as written
+ * by `backend/issues/civic.py`.
+ *
+ * The field names below are the real contract: `detections` and
+ * `classifier_labels`. Earlier versions of this UI read `objects` and
+ * `summary`, which the backend has never sent, so a genuine analysis could
+ * never be displayed.
+ *
+ * The honest "nothing to show" states are the literal blobs the backend writes:
+ * `{status: "not_analyzed", service: null}` when no analyzer is configured, and
+ * `{status: "unavailable", service: <url>, vision_notes: [...]}` when the
+ * analyzer was reachable but did not answer. Both must render as absence of a
+ * result, never as a detection.
  */
 export interface VisionReport {
   status?: string;
   service?: string | null;
-  objects?: unknown[];
-  count?: number;
-  summary?: string;
+  detections?: VisionDetection[];
+  classifier_labels?: string[];
+  models?: {
+    embedding?: string | null;
+    classifier?: string | null;
+    /** e.g. "yolo-coco" for the stock COCO detector, or null. */
+    detection?: string | null;
+  };
+  vision_notes?: string[];
   /** Retains any additional analyzer keys without pretending to model them. */
   [key: string]: unknown;
 }

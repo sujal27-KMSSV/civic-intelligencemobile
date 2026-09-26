@@ -4,6 +4,7 @@ import { getErrorMessage } from "../../api/client";
 import { useToast } from "../../components/Toast";
 import { SpinnerInline } from "../../components/Spinner";
 import { IconUpload } from "../../components/icons";
+import { MediaImage } from "../../components/MediaImage";
 import { formatPercent } from "../../utils/format";
 import { resolveMediaUrl } from "../../utils/media";
 import type { ImageSimilarityResult, Issue } from "../../types";
@@ -42,26 +43,22 @@ const INTERPRETATION_LABEL: Record<string, string> = {
   unavailable: "Not comparable",
 };
 
-function ImageFrame({ src, label }: { src: string | undefined; label: string }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-        {src ? (
-          <img
+  function ImageFrame({ src, label }: { src: string | undefined; label: string }) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex h-56 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+          <MediaImage
             src={src}
             alt={label}
             className="h-full w-full object-cover"
           />
-        ) : (
-          <span className="text-sm text-slate-400">No image recorded</span>
-        )}
+        </div>
+        <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          {label}
+        </p>
       </div>
-      <p className="text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-    </div>
-  );
-}
+    );
+  }
 
 export function ResolutionPanel({
   issue,

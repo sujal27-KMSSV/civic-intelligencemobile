@@ -2,7 +2,7 @@ import { SeverityBadge } from "../../components/Badges";
 import { IconShield } from "../../components/icons";
 import { formatPercent } from "../../utils/format";
 import { categoryLabel, severityColor } from "../../utils/media";
-import type { Issue, SeveritySignal } from "../../types";
+import type { Issue, SeveritySignal, VisionDetection } from "../../types";
 
 function signalLabel(sig: SeveritySignal): string {
   switch (sig.type) {
@@ -123,71 +123,126 @@ export function AIIntelligence({ issue }: { issue: Issue }) {
   );
 }
 
-/**
- * What the deployment's image analyzer actually reported.
- *
- * The backend is the only source here. When it reports `not_analyzed` — which
- * is what a deployment with no analyzer configured returns — the panel says so
- * plainly. It never shows a detection, a confidence or an object count that the
- * backend did not send.
- */
-function VisionPanel({ issue }: { issue: Issue }) {
-  const vision = issue.vision;
-  const status = typeof vision?.status === "string" ? vision.status : null;
-  const service = typeof vision?.service === "string" ? vision.service : null;
-  const objects = Array.isArray(vision?.objects) ? (vision?.objects as unknown[]) : [];
-  const summary = typeof vision?.summary === "string" ? vision.summary : null;
+  /**
+   * What the deployment's image analyzer actually reported.
+   *
+   * The backend is the only source here, and the field names are the ones it
+   * actually writes (`detections`, `classifier_labels`, `models`,
+   * `vision_notes`). It sends the literal `{status: "not_analyzed", service:
+   * null}` when no analyzer is configured and `{status: "unavailable", ...}`
+   * when the analyzer did not answer; both are rendered as an honest absence.
+   *
+   * Nothing here invents a detection, a confidence or a count. If the backend
+   * sent no result, the panel says so.
+   */
+  function VisionPanel({ issue }: { issue: Issue }) {
+    const vision = issue.vision;
+    const status = typeof vision?.status === "string" ? vision.status : null;
+    const service = typeof vision?.service === "string" ? vision.service : null;
+    const detections: VisionDetection[] = Array.isArray(vision?.detections)
+      ? vision.detections
+      : [];
+    const classifierLabels: string[] = Array.isArray(vision?.classifier_labels)
+      ? vision.classifier_labels.filter(
+          (l): l is string => typeof l === "string" && l.length > 0,
+        )
+      : [];
+    const notes: string[] = Array.isArray(vision?.vision_notes)
+      ? vision.vision_notes.filter(
+          (n): n is string => typeof n === "string" && n.length > 0,
+        )
+      : [];
+    const detectorModel =
+      typeof vision?.models?.detection === "string" ? vision.models.detection : null;
 
-  // "A result exists" only when the backend sent actual objects or a summary.
-  const hasResult = objects.length > 0 || summary != null;
-  const notAnalyzed = !vision || status === "not_analyzed" || (!hasResult && !service);
+    // A result exists only when the backend actually sent detections or labels.
+    const hasResult = detections.length > 0 || classifierLabels.length > 0;
+    const ranButEmpty = status === "ok" && !hasResult;
 
-  return (
-    <div className="mt-3 rounded-xl border border-slate-100 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        Image analysis
-      </p>
+    return (
+      <div className="mt-3 rounded-xl border border-slate-100 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Image analysis
+        </p>
 
-      {notAnalyzed ? (
-        <>
-          <p className="mt-1.5 text-sm font-semibold text-slate-700">
-            No image analysis for this report
-          </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-            {status
-              ? `The backend reported vision status "${status}" for this image.`
-              : "This deployment does not report a vision result for the image."}{" "}
-            Priority above is computed from the rules, not from an image model.
-          </p>
-        </>
-      ) : (
-        <>
-          {summary ? <p className="mt-1.5 text-sm text-slate-700">{summary}</p> : null}
-          {objects.length > 0 ? (
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-              {objects.map((obj, i) => (
-                <li
-                  key={i}
-                  className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
-                >
-                  {describeObject(obj)}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {service ? (
-            <p className="mt-2 text-[11px] text-slate-400">Analyzer: {service}</p>
-          ) : null}
-          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            The configured detector is a general-purpose COCO object model. It is
-            not trained on road defects, so a listed object is a general scene
-            label, not a confirmed pothole. Treat it as a hint only.
-          </p>
-        </>
-      )}
-    </div>
-  );
-}
+        {hasResult ? (
+          <>
+            {detections.length > 0 ? (
+              <>
+                <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Detected objects
+                </p>
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {detections.map((det, i) => (
+                    <li
+                      key={i}
+                      className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                    >
+                      {describeObject(det)}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+
+            {classifierLabels.length > 0 ? (
+              <>
+                <p className="mt-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Scene labels
+                </p>
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {classifierLabels.map((label, i) => (
+                    <li
+                      key={i}
+                      className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+
+            {detectorModel || service ? (
+              <p className="mt-2 text-[11px] text-slate-400">
+                Analyzer: {detectorModel ?? "detector"}
+                {service ? ` · ${service}` : ""}
+              </p>
+            ) : null}
+
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+              The configured detector is a general-purpose COCO object model. It is
+              not trained on road defects, so a listed object is a general scene
+              label, not a confirmed pothole. Treat it as a hint only.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-1.5 text-sm font-semibold text-slate-700">
+              {ranButEmpty
+                ? "Analyzer ran and reported nothing for this image"
+                : "No image analysis for this report"}
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              {status
+                ? `The backend reported vision status "${status}" for this image.`
+                : "This deployment does not report a vision result for the image."}{" "}
+              Priority above is computed from the rules, not from an image model.
+            </p>
+            {notes.length > 0 ? (
+              <ul className="mt-1.5 space-y-0.5">
+                {notes.map((n, i) => (
+                  <li key={i} className="text-[11px] leading-relaxed text-slate-400">
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        )}
+      </div>
+    );
+  }
 
 /** Render one reported object without assuming a particular analyzer shape. */
 function describeObject(obj: unknown): string {

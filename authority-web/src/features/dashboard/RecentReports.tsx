@@ -4,7 +4,8 @@ import { SeverityBadge, StatusBadge } from "../../components/Badges";
 import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/States";
 import { IconIssues, IconLink } from "../../components/icons";
-import { categoryLabel, resolveMediaUrl } from "../../utils/media";
+import { categoryLabel } from "../../utils/media";
+import { MediaImage } from "../../components/MediaImage";
 import { formatCount, relativeTime } from "../../utils/format";
 
 export function RecentReports({
@@ -54,16 +55,15 @@ export function RecentReports({
                 to={`/issues/${issue.id}`}
                 className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-slate-50"
               >
-                <div className="h-12 w-12 flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                  {issue.image_url ? (
-                    <img
-                      src={resolveMediaUrl(issue.image_url)}
+                  <div className="h-12 w-12 flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                    <MediaImage
+                      src={issue.image_url}
                       alt=""
+                      variant="thumb"
                       className="h-full w-full object-cover"
                       loading="lazy"
                     />
-                  ) : null}
-                </div>
+                  </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-500">

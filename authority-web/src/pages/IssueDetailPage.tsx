@@ -16,7 +16,8 @@ import { IssueMeta } from "../features/issues/IssueMeta";
 import { Lifecycle } from "../features/issues/Lifecycle";
 import { PriorityExplanation } from "../features/issues/PriorityExplanation";
 import { ResolutionPanel } from "../features/issues/ResolutionPanel";
-import { categoryLabel, resolveMediaUrl } from "../utils/media";
+import { categoryLabel } from "../utils/media";
+import { MediaImage } from "../components/MediaImage";
 import { formatDateShort, formatCount } from "../utils/format";
 
 export default function IssueDetailPage() {
@@ -127,19 +128,14 @@ export default function IssueDetailPage() {
                 Original report image
               </h3>
             </div>
-            <div className="p-5">
-              {issue.image_url ? (
-                <img
-                  src={resolveMediaUrl(issue.image_url)}
+              <div className="p-5">
+                <MediaImage
+                  src={issue.image_url}
                   alt={`Issue ${issue.id}`}
                   className="max-h-80 w-full rounded-xl border border-slate-100 object-cover"
+                  placeholderClassName="flex max-h-80 min-h-40 w-full items-center justify-center rounded-xl border border-slate-100 bg-slate-100"
                 />
-              ) : (
-                <div className="flex h-40 items-center justify-center rounded-xl bg-slate-100 text-sm text-slate-400">
-                  No image recorded
-                </div>
-              )}
-            </div>
+              </div>
           </div>
 
           <IssueMeta
