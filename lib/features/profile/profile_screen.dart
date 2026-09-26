@@ -21,7 +21,11 @@ class ProfileScreen extends ConsumerWidget {
     final displayEmail = user?.email ?? 'Sign in to see your email';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        // Root tab — back-arrow must never appear here.
+        automaticallyImplyLeading: false,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -81,7 +85,7 @@ class ProfileScreen extends ConsumerWidget {
                   title: const Text('Notifications'),
                   subtitle: const Text('Status updates'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/notifications'),
+                  onTap: () => context.push('/notifications'),
                 ),
               ],
             ),

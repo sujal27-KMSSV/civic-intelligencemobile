@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/empty_state.dart';
 import 'notification_center.dart';
@@ -17,6 +18,20 @@ class NotificationsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
+        // Explicit back affordance: this screen sits outside the tab shell (and
+        // is also reachable as a cold route), so the implied leading would be
+        // hidden. Pop when possible, otherwise land on the home tab.
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
+        ),
         actions: [
           TextButton(
             onPressed: unread == 0

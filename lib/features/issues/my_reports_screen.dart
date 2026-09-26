@@ -33,7 +33,11 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
     final reportsAsync = ref.watch(myReportsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Reports')),
+      appBar: AppBar(
+        title: const Text('My Reports'),
+        // Root tab — back-arrow must never appear here.
+        automaticallyImplyLeading: false,
+      ),
       body: SafeArea(
         child: reportsAsync.when(
           loading: () => const _LoadingState(),

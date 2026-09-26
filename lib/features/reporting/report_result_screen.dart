@@ -172,6 +172,13 @@ class _ResultError extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Report Submitted'),
         automaticallyImplyLeading: false,
+        // Mirror the loading-state close affordance so the failure screen is
+        // never a dead end.
+        leading: IconButton(
+          tooltip: 'Back to review',
+          icon: const Icon(Icons.close),
+          onPressed: onBack,
+        ),
       ),
       body: SafeArea(
         child: Center(

@@ -32,7 +32,7 @@ class HomeScreen extends ConsumerWidget {
                   issues: issues,
                   userName: userName,
                   unreadCount: unread,
-                  onNotificationsPressed: () => context.go('/notifications'),
+                  onNotificationsPressed: () => context.push('/notifications'),
                 ),
               ),
               SliverPadding(

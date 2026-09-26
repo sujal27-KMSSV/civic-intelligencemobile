@@ -84,7 +84,11 @@ class _ReportIssueScreenState extends ConsumerState<ReportIssueScreen> {
         if (didPop) _syncDescription();
       },
       child: Scaffold(
-        appBar: AppBar(title: const Text('Report Issue')),
+        appBar: AppBar(
+          title: const Text('Report Issue'),
+          // Root tab — back-arrow must never appear here.
+          automaticallyImplyLeading: false,
+        ),
         body: SafeArea(
           child: Stack(
             children: [

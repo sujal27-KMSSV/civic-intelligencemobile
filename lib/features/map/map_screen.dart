@@ -117,7 +117,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final issuesAsync = ref.watch(issueFeedProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Issue Map')),
+      appBar: AppBar(
+        title: const Text('Issue Map'),
+        // Root tab — back-arrow must never appear here.
+        automaticallyImplyLeading: false,
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: [

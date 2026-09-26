@@ -248,7 +248,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                         TextButton(
-                          onPressed: () => context.goNamed('register'),
+                          onPressed: () => context.pushNamed('register'),
                           child: const Text('Create Account'),
                         ),
                       ],

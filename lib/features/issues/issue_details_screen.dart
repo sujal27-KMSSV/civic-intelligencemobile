@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/constants/colors.dart';
 import '../../core/widgets/priority_chip.dart';
 import '../../core/widgets/report_edit_dialog.dart';
@@ -40,6 +41,16 @@ class IssueDetailsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Issue #$issueId'),
+        // Fallback for a cold deep link (no pushed history): a leading is only
+        // rendered here when the implied one is suppressed, so pushed
+        // navigation keeps its standard back arrow.
+        leading: Navigator.of(context).canPop()
+            ? null
+            : IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => context.go('/'),
+              ),
         actions: [
           if (canEdit)
             IconButton(
