@@ -240,7 +240,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         left: 12,
         right: 12,
         child: Material(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           elevation: 2,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
@@ -469,7 +469,7 @@ class _MapNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Material(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         elevation: 2,
         borderRadius: BorderRadius.circular(12),
         child: Padding(

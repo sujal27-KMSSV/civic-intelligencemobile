@@ -783,3 +783,153 @@ class CitizenPATCHRestrictionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         for field in ("category", "status"):
             self.assertIn(field, response.json()["detail"])
+
+
+class CivicIntelligenceV2Tests(APITestCase):
+    """Engine v2: image-signal dedup, consolidated master issues, priority."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="citizen@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _post(self, latitude, longitude, description, category="pothole"):
+        return self.client.post(
+            "/api/issues/",
+            {
+                "latitude": str(latitude),
+                "longitude": str(longitude),
+                "description": description,
+                "category": category,
+                "image": self._png(),
+            },
+            format="multipart",
+        )
+
+    def test_new_issue_exposes_priority_and_image_features(self):
+        response = self._post(28.6139, 77.2090, "Pothole at the crossing.")
+        body = response.json()
+        self.assertIn("priority", body)
+        self.assertIn("priority_label", body)
+        self.assertEqual(body["priority_label"], "low")
+        self.assertGreaterEqual(body["priority"], 10.0)
+        issue = Issue.objects.get(id=body["id"])
+        # Perceptual hash of the constant-colour test PNG is 64 bits.
+        self.assertEqual(len(issue.image_dhash), 64)
+        self.assertIsNotNone(issue.image_brightness)
+
+    def test_duplicate_joins_master_and_exposes_cluster_context(self):
+        first = self._post(28.6139, 77.2090, "Pothole at the crossing.").json()
+        second = self._post(28.6140, 77.2092, "Pothole at the crossing.").json()
+        root = Issue.objects.get(id=first["id"])
+        child = Issue.objects.get(id=second["id"])
+
+        self.assertTrue(second["duplicate"])
+        self.assertEqual(second["master_id"], root.pk)
+        self.assertFalse(second["is_master"])
+        self.assertEqual(second["cluster_size"], 2)
+
+        master = Issue.objects.get(id=root.pk)
+        detail = self.client.get(f"/api/issues/{root.pk}/").json()
+        self.assertTrue(detail["is_master"])
+        self.assertEqual(detail["master_id"], root.pk)
+        self.assertEqual(detail["cluster_member_ids"], sorted([root.pk, child.pk]))
+        self.assertEqual(detail["cluster_size"], 2)
+        self.assertEqual(detail["duplicate_count"], 2)
+
+    def test_duplicate_detail_links_to_master(self):
+        first = self._post(28.6139, 77.2090, "Pothole at the crossing.").json()
+        second = self._post(28.6140, 77.2092, "Pothole at the crossing.").json()
+        body = self.client.get(f"/api/issues/{second['id']}/").json()
+        self.assertEqual(body["master_id"], first["id"])
+        self.assertEqual(body["cluster_member_ids"], [])
+
+    def test_feed_collapses_duplicates_by_default(self):
+        self._post(28.6139, 77.2090, "Pothole at the crossing.")
+        self._post(28.6141, 77.2093, "Pothole at the crossing.")
+        self._post(28.6142, 77.2091, "Pothole at the crossing.")
+        self.assertLessEqual(len(self.client.get("/api/issues/").json()), 1)
+
+    def test_collapse_zero_returns_every_report(self):
+        self._post(28.6139, 77.2090, "Pothole at the crossing.")
+        self._post(28.6141, 77.2093, "Pothole at the crossing.")
+        body = self.client.get("/api/issues/?collapse=0").json()
+        self.assertEqual(len(body), 2)
+
+    def test_priority_climbs_with_supporting_reports(self):
+        first = self._post(28.6139, 77.2090, "Pothole at the crossing.").json()
+        self._post(28.6140, 77.2092, "Pothole at the crossing.")
+        self._post(28.6138, 77.2091, "Pothole at the crossing.")
+        root = Issue.objects.get(id=first["id"])
+        # 3 reports: severity base 40 (pothole) may push label up; supporting
+        # reports must raise priority above the single-report baseline.
+        self.assertGreater(root.priority, 0)
+        reasons = {r["factor"] for r in root.priority_reasons}
+        self.assertIn("duplicate_reports", reasons)
+        self.assertIn("cluster_master", reasons)
+
+    def test_my_reports_keep_every_report_with_cluster_context(self):
+        first = self._post(28.6139, 77.2090, "Pothole at the crossing.").json()
+        second = self._post(28.6140, 77.2092, "Pothole at the crossing.").json()
+        body = self.client.get("/api/my-reports/").json()
+        ids = [i["id"] for i in body]
+        self.assertIn(first["id"], ids)
+        self.assertIn(second["id"], ids)
+        dup = next(i for i in body if i["id"] == second["id"])
+        self.assertEqual(dup["master_id"], first["id"])
+
+
+class HotspotApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="citizen@example.com", password="secret123"
+        )
+        self.token, _ = Token.objects.get_or_create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.token.key}")
+
+    def _png(self):
+        return SimpleUploadedFile("photo.png", TINY_PNG, content_type="image/png")
+
+    def _post(self, latitude, longitude):
+        return self.client.post(
+            "/api/issues/",
+            {
+                "latitude": str(latitude),
+                "longitude": str(longitude),
+                "description": "Pothole at the crossing.",
+                "category": "pothole",
+                "image": self._png(),
+            },
+            format="multipart",
+        )
+
+    def test_hotspots_public_endpoint_groups_real_locations(self):
+        for lat, lon in [
+            (28.613, 77.208),
+            (28.613, 77.208),
+            (28.613, 77.208),
+            (19.0760, 72.8777),  # Mumbai, very far away
+        ]:
+            self._post(lat, lon)
+        self.client.credentials()
+        response = self.client.get("/api/hotspots/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        cells = response.json()
+        self.assertTrue(cells)
+        top = cells[0]
+        self.assertGreaterEqual(top["issue_count"], 3)
+        self.assertEqual(
+            {c[0] for c in top["categories"]},
+            {"pothole"},
+        )
+        self.assertIn("top_issue_id", top)
+
+    def test_hotspots_rejects_bad_grid(self):
+        self.client.credentials()
+        response = self.client.get("/api/hotspots/?grid=999")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

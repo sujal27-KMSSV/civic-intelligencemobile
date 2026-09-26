@@ -117,8 +117,12 @@ updated to the same valid-photo helper.
   **hardened server flags are live**.
 - Citizen `PATCH /api/issues/21/ {"latitude": ...}` → **HTTP 403** (allow-list
   enforced live).
-- Account A (`finaldemo20260923x@example.com` / `Demo@1234`) → exactly **4
-  legacy reports** after all E2E runs; **zero** E2E leftovers in the feed.
+- E2E suites are **fully self-contained**: the two-account and network-failure
+  tests self-register fresh throwaway accounts at runtime (no shared demo
+  credential in VCS), produce **zero** E2E leftovers in the feed, and leave
+  every account it creates with zero reports at the end of the run. (The
+  legacy `finaldemo20260923x@example.com` fixture was removed from the suites;
+  see docs/security.md for the credential policy.)
 - Auth rate limiting: implemented and unit-tested (429 after 10
   rapid logins); the explicit 11-login live probe was verified in the prior
   phase and today's targeted repeat was inconclusive only due to IP-throttle

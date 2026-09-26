@@ -20,7 +20,7 @@ class RemotePhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = url;
-    if (value == null || value.isEmpty) return _placeholder;
+    if (value == null || value.isEmpty) return _placeholder(context);
 
     final Widget image;
     if (value.startsWith('http://') || value.startsWith('https://')) {
@@ -41,14 +41,14 @@ class RemotePhoto extends StatelessWidget {
             ),
           );
         },
-        errorBuilder: (context, error, stack) => _placeholder,
+        errorBuilder: (context, error, stack) => _placeholder(context),
       );
     } else {
       image = Image.file(
         File(value),
         fit: BoxFit.cover,
         cacheWidth: 540,
-        errorBuilder: (context, error, stack) => _placeholder,
+        errorBuilder: (context, error, stack) => _placeholder(context),
       );
     }
 
@@ -58,8 +58,8 @@ class RemotePhoto extends StatelessWidget {
     );
   }
 
-  Widget get _placeholder => Container(
-        color: const Color(0xFFE8EAED),
+  Widget _placeholder(BuildContext context) => Container(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         alignment: Alignment.center,
         child: const Icon(Icons.image_outlined, size: 36, color: Colors.grey),
       );

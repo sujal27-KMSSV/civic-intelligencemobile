@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/issue.dart';
+import 'priority_chip.dart';
 import 'remote_photo.dart';
 import 'severity_chip.dart';
 import 'status_chip.dart';
@@ -13,6 +14,14 @@ class IssueCard extends StatelessWidget {
   String get _category => issue.analysis?.category ?? 'Issue';
   String get _severity => issue.analysis?.severity ?? '';
   int get _duplicateCount => issue.analysis?.duplicateCount ?? 0;
+
+  bool get _isConsolidated =>
+      issue.masterId != null &&
+      issue.masterId!.isNotEmpty &&
+      issue.masterId != issue.id;
+
+  bool get _isMasterConsolidation =>
+      issue.isMaster == true && (issue.clusterSize ?? 0) > 1;
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +132,41 @@ class IssueCard extends StatelessWidget {
                   ],
                 ),
               ],
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (issue.priorityLabel != null) ...[
+                    PriorityChip(label: issue.priorityLabel),
+                    if (_isConsolidated || _isMasterConsolidation)
+                      const SizedBox(width: 8),
+                  ],
+                  if (_isConsolidated)
+                    Expanded(
+                      child: Text(
+                        'Consolidated under Issue #${issue.masterId}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ),
+                  if (_isMasterConsolidation) ...[
+                    Icon(Icons.groups_outlined,
+                        size: 14, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        'Consolidates ${issue.clusterSize} report'
+                        '${issue.clusterSize == 1 ? '' : 's'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: Colors.grey[500], fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: 8),
               Row(
                 children: [

@@ -71,12 +71,29 @@ def resolve_issue(
     if similarity.get("similarity") is not None:
         issue.resolution_similarity = similarity["similarity"]
 
+    # Store the full honest measurement (method + interpretation + brightness)
+    # on the row so the dashboard can show exactly how it was derived.
+    analysis = dict(issue.analysis or {})
+    analysis["resolution"] = {
+        "method": similarity.get("method"),
+        "similarity": similarity.get("similarity"),
+        "interpretation": similarity.get("interpretation"),
+        "brightness_before": similarity.get("brightness_before"),
+        "brightness_after": similarity.get("brightness_after"),
+        "note": (
+            "Heuristic perceptual comparison of BEFORE/AFTER photos. "
+            "Resolution remains an authority decision."
+        ),
+    }
+    issue.analysis = analysis
+
     issue.save(update_fields=[
         "status",
         "resolution_image",
         "resolution_notes",
         "resolved_at",
         "resolution_similarity",
+        "analysis",
         "updated_at",
     ])
     return issue, similarity, None

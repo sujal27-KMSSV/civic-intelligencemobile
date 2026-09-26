@@ -31,6 +31,9 @@ void main() {
     int duplicateCount = 0,
     String department = 'Roads',
     String status = 'reported',
+    double? priority,
+    String? priorityLabel,
+    List<String> priorityReasons = const [],
   }) {
     return Issue(
       id: 'CI-1042',
@@ -39,6 +42,9 @@ void main() {
       longitude: 77.2090,
       address: 'Connaught Place, New Delhi',
       status: status,
+      priority: priority,
+      priorityLabel: priorityLabel,
+      priorityReasons: priorityReasons,
       analysis: AiAnalysis(
         category: 'Pothole',
         confidence: confidence,
@@ -75,7 +81,7 @@ void main() {
 
     expect(find.text('Report CI-1042 submitted'), findsOneWidget);
     expect(find.text('Pothole'), findsOneWidget);
-    expect(find.text('96% confidence'), findsOneWidget);
+    expect(find.text('96% similar'), findsOneWidget);
     expect(find.text('CRITICAL'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Responsible department'),
@@ -133,7 +139,7 @@ void main() {
       [ReportSubmissionState.success(makeIssue(confidence: 0.52))],
     );
 
-    expect(find.text('52% confidence'), findsOneWidget);
+    expect(find.text('52% similar'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.textContaining('Low similarity'),
       80,
@@ -147,6 +153,36 @@ void main() {
     await pumpResult(tester, [ReportSubmissionState.success(makeIssue())]);
 
     expect(find.textContaining('Low similarity'), findsNothing);
+  });
+
+  testWidgets('priority shows the explainable label, score and reasons',
+      (tester) async {
+    await pumpResult(
+      tester,
+      [
+        ReportSubmissionState.success(
+          makeIssue(
+            priority: 72,
+            priorityLabel: 'High',
+            priorityReasons: const [
+              'High severity',
+              'Multiple reports nearby',
+            ],
+          ),
+        ),
+      ],
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Explainable priority'),
+      80,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Explainable priority'), findsOneWidget);
+    expect(find.text('72/100'), findsOneWidget);
+    expect(find.text('High severity'), findsOneWidget);
+    expect(find.text('Multiple reports nearby'), findsOneWidget);
   });
 
   testWidgets('loading state shows a progress indicator', (tester) async {
@@ -175,7 +211,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pothole'), findsOneWidget);
-    expect(find.text('96% confidence'), findsOneWidget);
+    expect(find.text('96% similar'), findsOneWidget);
     expect(find.text('Try Again'), findsNothing);
   });
 }

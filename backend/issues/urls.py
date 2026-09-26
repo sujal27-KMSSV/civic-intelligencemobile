@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import IssueViewSet, MyReportsView
+from .views import IssueViewSet, MyReportsView, hotspots
 
 router = DefaultRouter()
 router.register("issues", IssueViewSet, basename="issue")
@@ -9,4 +9,5 @@ router.register("issues", IssueViewSet, basename="issue")
 urlpatterns = [
     path("", include(router.urls)),
     path("my-reports/", MyReportsView.as_view(), name="my-reports"),
+    path("hotspots/", hotspots, name="hotspots"),
 ]

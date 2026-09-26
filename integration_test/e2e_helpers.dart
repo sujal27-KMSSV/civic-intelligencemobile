@@ -12,11 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart' show LocationAccuracy;
 import 'package:path_provider/path_provider.dart';
 
-/// Long-lived production account used by the two-account smoke test. It has
-/// four legacy reports in the shared database and never changes across runs.
-const String accountAEmail = 'finaldemo20260923x@example.com';
-const String accountAPassword = 'Demo@1234';
-
 const String kFakeAddress = 'Connaught Place, New Delhi';
 
 /// Draws a 640x480 solid-colour frame and encodes it as a real PNG (>= the

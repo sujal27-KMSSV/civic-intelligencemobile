@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/issue.dart';
+import '../../core/widgets/priority_chip.dart';
 import 'report_draft_provider.dart';
 import 'report_submission_provider.dart';
 import 'widgets/report_photo_card.dart';
@@ -285,6 +286,11 @@ class _ResultSuccess extends StatelessWidget {
                     analysis: analysis,
                     confidencePercent: confidencePercent,
                   ),
+                  if (issue.priority != null ||
+                      issue.priorityLabel != null) ...[
+                    const SizedBox(height: 12),
+                    _PriorityCard(issue: issue),
+                  ],
                   const SizedBox(height: 16),
                   if (analysis.isDuplicate)
                     _DuplicateBanner(count: analysis.duplicateCount)
@@ -419,7 +425,7 @@ class _AnalysisCard extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 20),
           Text(
-            'Analysis confidence',
+            'Similarity to existing reports',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -428,7 +434,7 @@ class _AnalysisCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$confidencePercent% confidence',
+            '$confidencePercent% similar',
             style: Theme.of(context)
                 .textTheme
                 .titleLarge
@@ -443,6 +449,83 @@ class _AnalysisCard extends StatelessWidget {
               backgroundColor: colors.surfaceContainerHighest,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriorityCard extends StatelessWidget {
+  const _PriorityCard({required this.issue});
+
+  final Issue issue;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final score = issue.priority;
+    final reasons = issue.priorityReasons;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 20, color: colors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Explainable priority',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+              PriorityChip(label: issue.priorityLabel),
+            ],
+          ),
+          if (score != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              '${score.round()}/100',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+          if (reasons.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            for (final reason in reasons)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 14,
+                      color: priorityColor(issue.priorityLabel),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        reason,
+                        style: const TextStyle(fontSize: 13, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ],
       ),
     );

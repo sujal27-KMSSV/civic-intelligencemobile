@@ -14,4 +14,5 @@ urlpatterns = [
     ),
     path("issues/<int:pk>/resolve/", api.issue_resolve, name="resolve"),
     path("stats/", api.stats, name="stats"),
+    path("hotspots/", api.hotspot_cells, name="hotspots"),
 ]

@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
@@ -41,16 +42,38 @@ AUTHORITY_OWNED_FIELDS = {
 class IssueViewSet(viewsets.ModelViewSet):
     """Public read endpoints; authenticated writes.
 
-    - GET    /api/issues/          public list, newest first
-    - GET    /api/issues/{id}/     public detail
+    - GET    /api/issues/          public list, newest first; duplicates are
+                                   COLLAPSED into their master issue by default
+                                   (``?collapse=0`` returns every report)
+    - GET    /api/issues/{id}/     public detail (with cluster context)
     - POST   /api/issues/          authenticated citizen submission (multipart)
     - PATCH  /api/issues/{id}/     reporter or staff update
     - DELETE /api/issues/{id}/     reporter or staff delete
     """
 
-    queryset = Issue.objects.all().order_by("-created_at")
+    queryset = Issue.objects.all().order_by("-priority", "-created_at")
     serializer_class = IssueSerializer
     http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        qs = (
+            Issue.objects.all()
+            .select_related("duplicate_of")
+            .prefetch_related("duplicates")
+        )
+        if self.action == "list":
+            collapse = self.request.query_params.get("collapse", "1")
+            if collapse != "0":
+                # MASTER-ISSUE CONSOLIDATION: the public feed shows one card per
+                # cluster (the master), never the supporting duplicates. The
+                # duplicate_count on the master card tells citizens how many
+                # neighbours reported the same issue.
+                qs = qs.filter(duplicate_of__isnull=True).order_by(
+                    "-priority", "-created_at"
+                )
+            else:
+                qs = qs.order_by("-created_at")
+        return qs
 
     def get_permissions(self):
         if self.action in {"create", "partial_update", "destroy"}:
@@ -216,6 +239,30 @@ class MyReportsView(generics.ListAPIView):
     def get_queryset(self):
         return (
             Issue.objects.filter(reporter=self.request.user)
-            .select_related("reporter")
+            .select_related("duplicate_of")
+            .prefetch_related("duplicates")
             .order_by("-created_at")
         )
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def hotspots(request):
+    """Heat-map cells computed from REAL open-issue locations (no model).
+
+    Grid-buckets open issues (~220 m cells by default) and returns the densest
+    cells so the app can render a civic-intelligence heat map. ``?grid=`` tunes
+    cell size (degrees), ``?limit=`` caps the number of cells returned.
+    """
+    try:
+        grid = float(request.query_params.get("grid", 0.002))
+        if not (0.0001 <= grid <= 0.05):
+            raise ValueError
+    except ValueError:
+        return Response(
+            {"detail": "grid must be a number of degrees between 0.0001 and 0.05."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    limit = max(1, min(int(request.query_params.get("limit", 5) or 5), 25))
+    qs = Issue.objects.exclude(status__in=("resolved", "rejected"))
+    return Response(civic.cluster_hotspots(qs, grid=grid, limit=limit))

@@ -93,7 +93,7 @@ void main() {
     await _pumpUntil(tester, find.text('Register'));
 
     final email = 'e2e${DateTime.now().millisecondsSinceEpoch}@example.com';
-    const password = 'P@ssw0rd!2026';
+    const password = 'ThrowawayFix7!E2e';
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'E2E');
     await tester.enterText(fields.at(1), 'Flow');
@@ -217,7 +217,7 @@ void main() {
     await _pumpUntil(tester, find.text('My Reports'));
     await _tap(tester, find.text('Profile'));
     await _pumpUntil(tester, find.text('Logout'));
-    await tester.ensureVisible(find.text('Version 1.0.3'));
-    expect(find.text('Version 1.0.3'), findsOneWidget);
+    await tester.ensureVisible(find.text('Version 1.1.0'));
+    expect(find.text('Version 1.1.0'), findsOneWidget);
   });
 }

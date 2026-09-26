@@ -100,6 +100,18 @@ class Issue(models.Model):
     # Machine-readable analysis detail (severity breakdown, duplicate cluster,
     # engine version) for the authority dashboard. Human display stays honest.
     analysis = models.JSONField(blank=True, default=dict)
+    # Explainable priority score (0..100) computed by issues.civic.score_priority().
+    # Never random or model-inferred; every point is traceable to a rule.
+    priority = models.FloatField(default=0.0)
+    priority_label = models.CharField(
+        max_length=16, blank=True, default="low"
+    )
+    priority_reasons = models.JSONField(blank=True, default=list)
+    # Cached perceptual hash (64-bit dHash as '0'/'1' text) + mean brightness of
+    # the report photo. Computed once at analysis time so duplicate detection
+    # and resolution comparison reuse it instead of re-reading media files.
+    image_dhash = models.CharField(max_length=64, blank=True, default="")
+    image_brightness = models.FloatField(blank=True, null=True)
 
     # Resolution lifecycle (authority-driven).
     resolution_image = models.ImageField(

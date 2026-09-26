@@ -87,7 +87,7 @@ void main() {
 
     await bringIntoView(tester, find.text('Pothole'));
     expect(find.text('Pothole'), findsOneWidget);
-    expect(find.text('100% confidence'), findsOneWidget);
+    expect(find.text('100% similar'), findsOneWidget);
     expect(find.text('LOW'), findsOneWidget);
 
     await bringIntoView(tester, find.text('New issue'));

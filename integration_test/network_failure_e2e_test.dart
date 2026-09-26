@@ -34,6 +34,7 @@ void main() {
 
   testWidgets('home feed: offline error state, Retry recovery, relaunch',
       (tester) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
     final photo = await writeValidPhoto();
     final flaky = FlakyFeedRepository(ApiIssueFeedRepository());
 
@@ -46,8 +47,12 @@ void main() {
       overrides: [issueFeedRepositoryProvider.overrideWithValue(flaky)],
     );
 
-    _step('A login');
-    await login(tester, email: accountAEmail, password: accountAPassword);
+    _step('A register (self-contained throwaway account)');
+    await register(
+      tester,
+      email: 'nfe2e$ts@example.com',
+      password: 'Strong!NfE2e9z',
+    );
 
     // The feed fetch threw: Home shows the offline EmptyState, not a spinner
     // and not a half-rendered list.

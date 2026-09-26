@@ -121,6 +121,31 @@ class AuthorityApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         issue.refresh_from_db()
         self.assertEqual(issue.status, "resolved")
+
+    def test_resolve_records_honest_evaluation_in_analysis(self):
+        self._auth()
+        issue = make_issue(self.citizen, status=Issue.Status.IN_PROGRESS)
+        response = self.client.post(
+            reverse("authority_api:resolve", args=[issue.id]),
+            {
+                "image": SimpleUploadedFile(
+                    "after.png", TINY_PNG, content_type="image/png"
+                ),
+                "notes": "Repaved by the crew.",
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        issue.refresh_from_db()
+        resolution = (issue.analysis or {}).get("resolution")
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution["method"], "dhash-hamming-64")
+        self.assertIn("interpretation", resolution)
+        self.assertIn("brightness_before", resolution)
+        self.assertEqual(
+            resolution["similarity"], issue.resolution_similarity,
+        )
+        self.assertIn("note", resolution)
         self.assertTrue(issue.resolution_image.name.startswith("resolution/"))
         self.assertEqual(issue.resolution_notes, "Repaved by the crew.")
         self.assertIsNotNone(issue.resolved_at)

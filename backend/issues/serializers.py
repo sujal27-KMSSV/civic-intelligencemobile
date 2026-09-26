@@ -11,7 +11,8 @@ class IssueSerializer(serializers.ModelSerializer):
     The Flutter app reads these exact top-level keys on every issue endpoint
     (list, detail, my-reports and the submission response): id, image_url,
     description, latitude, longitude, address, status, created_at, updated_at,
-    category, confidence, severity, duplicate, duplicate_count, department.
+    category, confidence, severity, duplicate, duplicate_count, department,
+    priority, priority_label, master_id, cluster_size.
     """
 
     image = serializers.ImageField(
@@ -56,9 +57,19 @@ class IssueSerializer(serializers.ModelSerializer):
     )
     resolution_similarity = serializers.FloatField(read_only=True)
     resolved_at = serializers.DateTimeField(read_only=True)
+    # Explainable priority (rule-based, 0..100) surfaced to the app.
+    priority = serializers.FloatField(read_only=True)
+    priority_label = serializers.CharField(read_only=True)
+    priority_reasons = serializers.JSONField(read_only=True)
+    # Duplicate-cluster context: which report is the cluster master, and (for
+    # the master) the ids of the supporting reports it consolidates.
+    master_id = serializers.SerializerMethodField(read_only=True)
+    is_master = serializers.SerializerMethodField(read_only=True)
+    cluster_size = serializers.SerializerMethodField(read_only=True)
+    cluster_member_ids = serializers.SerializerMethodField(read_only=True)
     # Server-authoritative retraction/editing flags. The app derives Delete /
     # Edit visibility exclusively from these, eliminating device-vs-server
-    # clock skew (the historical cause of the “Delete button flicker” bug).
+    # clock skew (the historical cause of the "Delete button flicker" bug).
     can_delete = serializers.SerializerMethodField(read_only=True)
     can_edit = serializers.SerializerMethodField(read_only=True)
 
@@ -82,7 +93,15 @@ class IssueSerializer(serializers.ModelSerializer):
             "severity",
             "duplicate",
             "duplicate_count",
+            "duplicate_of",
             "department",
+            "priority",
+            "priority_label",
+            "priority_reasons",
+            "master_id",
+            "is_master",
+            "cluster_size",
+            "cluster_member_ids",
             "resolution_status",
             "resolution_image_url",
             "resolution_similarity",
@@ -98,6 +117,27 @@ class IssueSerializer(serializers.ModelSerializer):
         if obj.resolution_similarity is not None:
             return "verification-recorded"
         return "pending"
+
+    def get_master_id(self, obj):
+        # A duplicate points at its cluster master; a master is its own master.
+        return obj.duplicate_of_id if obj.duplicate_of_id is not None else obj.pk
+
+    def get_is_master(self, obj) -> bool:
+        # A "master" consolidates at least one supporting report.
+        return obj.duplicate_of_id is None and obj.duplicate_count > 0
+
+    def get_cluster_size(self, obj) -> int:
+        if obj.duplicate_of_id is not None:
+            return max(1, obj.duplicate_of_id and (obj.duplicate_count or 1))
+        return max(1, obj.duplicate_count or 1)
+
+    def get_cluster_member_ids(self, obj) -> list:
+        # Only the master reports the full member list (children reference it).
+        if obj.duplicate_of_id is not None or obj.pk is None:
+            return []
+        return sorted(
+            {obj.pk} | {d.pk for d in obj.duplicates.all()}
+        )
 
     def get_can_delete(self, obj) -> bool:
         return not delete_window_expired(obj.created_at)

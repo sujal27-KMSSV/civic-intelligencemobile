@@ -51,7 +51,7 @@ def issue_list(request):
             default=Value(1),
             output_field=IntegerField(),
         )
-    ).order_by("is_open", "created_at")
+    ).order_by("is_open", "-priority", "created_at")
     return Response(AuthorityIssueSerializer(qs, many=True).data)
 
 
@@ -125,3 +125,28 @@ def stats(request):
     data = service.stats_with_departments()
     data.pop("_", None)
     return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAdminUser])
+def hotspot_cells(request):
+    """Priority-ordered hotspot cells for the authority heat map.
+
+    Includes resolved/rejected statuses in the aggregates so the authority can
+    see recent history, not just what is open right now. ``?grid=`` tunes cell
+    size; ``?limit=`` caps the number of cells.
+    """
+    from issues import civic as issues_civic
+
+    try:
+        grid = float(request.query_params.get("grid", 0.002))
+        if not (0.0001 <= grid <= 0.05):
+            raise ValueError
+    except ValueError:
+        return Response(
+            {"detail": "grid must be a number of degrees between 0.0001 and 0.05."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    limit = max(1, min(int(request.query_params.get("limit", 10) or 10), 50))
+    qs = Issue.objects.all()
+    return Response(issues_civic.cluster_hotspots(qs, grid=grid, limit=limit))

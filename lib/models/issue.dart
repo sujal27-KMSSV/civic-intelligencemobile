@@ -39,6 +39,20 @@ class Issue {
   final DateTime? updatedAt;
   final AiAnalysis? analysis;
 
+  /// Explainable, rule-based priority (0..100) computed by the civic engine.
+  /// Only surfaced when the backend provides it.
+  final double? priority;
+  final String? priorityLabel;
+  final List<String> priorityReasons;
+
+  /// Duplicate-cluster context. A child report carries [masterId]; its cluster
+  /// master is its own id. [clusterSize] counts every member (>= 1) and
+  /// [isMaster] is true only for the cluster root. These are null whenever the
+  /// backend did not include cluster fields (e.g. old cached data).
+  final String? masterId;
+  final int? clusterSize;
+  final bool? isMaster;
+
   /// Server-authoritative flags: whether the current user may delete/edit this
   /// report right now. The backend derives them from its own clock and the
   /// report's permitted lifecycle, so the app never needs device-time math.
@@ -56,6 +70,12 @@ class Issue {
     this.createdAt,
     this.updatedAt,
     this.analysis,
+    this.priority,
+    this.priorityLabel,
+    this.priorityReasons = const [],
+    this.masterId,
+    this.clusterSize,
+    this.isMaster,
     this.canDelete,
     this.canEdit,
   });
@@ -78,6 +98,12 @@ class Issue {
       analysis: json['analysis'] != null
           ? AiAnalysis.fromJson(json['analysis'] as Map<String, dynamic>)
           : null,
+      priority: _toDouble(json['priority']),
+      priorityLabel: json['priority_label'] as String?,
+      priorityReasons: _stringList(json['priority_reasons']),
+      masterId: json['master_id']?.toString(),
+      clusterSize: (json['cluster_size'] as num?)?.toInt(),
+      isMaster: json['is_master'] as bool?,
       canDelete: json['can_delete'] as bool?,
       canEdit: json['can_edit'] as bool?,
     );
@@ -97,6 +123,12 @@ class Issue {
       id: id is num ? '${id.toInt()}' : (id?.toString() ?? 'Unknown'),
       description: description,
       status: json['status']?.toString() ?? 'reported',
+      priority: _toDouble(json['priority']),
+      priorityLabel: json['priority_label'] as String?,
+      priorityReasons: _stringList(json['priority_reasons']),
+      masterId: json['master_id']?.toString(),
+      clusterSize: (json['cluster_size'] as num?)?.toInt(),
+      isMaster: json['is_master'] as bool?,
       analysis: AiAnalysis(
         category: _titleCase(json['category']?.toString()),
         confidence: (json['confidence'] as num?)?.toDouble() ?? 0,
@@ -119,6 +151,12 @@ class Issue {
         'created_at': createdAt?.toIso8601String(),
         'updated_at': updatedAt?.toIso8601String(),
         'analysis': analysis?.toJson(),
+        'priority': priority,
+        'priority_label': priorityLabel,
+        'priority_reasons': priorityReasons,
+        'master_id': masterId,
+        'cluster_size': clusterSize,
+        'is_master': isMaster,
       };
 
   /// Maps an item from `GET /api/my-reports/` to an [Issue].
@@ -152,12 +190,28 @@ class Issue {
           ? DateTime.tryParse(json['updated_at'] as String)
           : null,
       analysis: analysis,
+      priority: _toDouble(json['priority']),
+      priorityLabel: json['priority_label'] as String?,
+      priorityReasons: _stringList(json['priority_reasons']),
+      masterId: json['master_id']?.toString(),
+      clusterSize: (json['cluster_size'] as num?)?.toInt(),
+      isMaster: json['is_master'] as bool?,
       canDelete: json['can_delete'] as bool?,
       canEdit: json['can_edit'] as bool?,
     );
   }
 
   IssueStatus get statusEnum => IssueStatus.parse(status);
+}
+
+double? _toDouble(dynamic value) => (value as num?)?.toDouble();
+
+List<String> _stringList(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<String>()
+      .map((e) => e.toString())
+      .toList(growable: false);
 }
 
 class AiAnalysis {

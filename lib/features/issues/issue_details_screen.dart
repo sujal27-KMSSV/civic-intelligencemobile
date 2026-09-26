@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/colors.dart';
+import '../../core/widgets/priority_chip.dart';
 import '../../core/widgets/report_edit_dialog.dart';
 import '../../core/widgets/severity_chip.dart';
 import '../../core/widgets/status_chip.dart';
@@ -159,6 +160,14 @@ class _IssueDetailBody extends StatelessWidget {
   bool get _hasAnalysis => issue.analysis != null;
   int get _duplicates => issue.analysis?.duplicateCount ?? 0;
   bool get _isDuplicate => issue.analysis?.isDuplicate ?? false;
+  bool get _hasPriority =>
+      issue.priority != null || (issue.priorityLabel?.isNotEmpty ?? false);
+
+  /// A child report of a cluster — it was merged into a master issue.
+  bool get _isConsolidated =>
+      issue.masterId != null &&
+      issue.masterId!.isNotEmpty &&
+      issue.masterId != issue.id;
 
   @override
   Widget build(BuildContext context) {
@@ -183,10 +192,19 @@ class _IssueDetailBody extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               if (_hasAnalysis) _AnalysisSection(issue: issue) else const _AnalysisUnavailable(),
+              if (_hasPriority) ...[
+                const SizedBox(height: 16),
+                _PrioritySection(issue: issue),
+              ],
               const SizedBox(height: 16),
               _DetailsSection(issue: issue),
               const SizedBox(height: 16),
               _StatusTimelineSection(issue: issue),
+              if (_isConsolidated)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: _ConsolidationBanner(masterId: issue.masterId!),
+                ),
               if (_isDuplicate)
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
@@ -277,7 +295,7 @@ class _PhotoHeader extends StatelessWidget {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: Container(
-        color: const Color(0xFFE8EAED),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         alignment: Alignment.center,
         child: image,
       ),
@@ -291,7 +309,7 @@ class _PhotoPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFE8EAED),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       alignment: Alignment.center,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -331,7 +349,7 @@ class _AnalysisSection extends StatelessWidget {
                 Row(
                   children: [
                     const Text(
-                      'Confidence',
+                      'Similarity to existing reports',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const Spacer(),
@@ -360,7 +378,7 @@ class _AnalysisSection extends StatelessWidget {
         else
           const _InfoRow(
             icon: Icons.percent,
-            label: 'Confidence',
+            label: 'Similarity',
             value: 'Not reported',
           ),
         _InfoRow(
@@ -415,6 +433,99 @@ class _AnalysisUnavailable extends StatelessWidget {
           value: 'Not available yet',
         ),
       ],
+    );
+  }
+}
+
+class _PrioritySection extends StatelessWidget {
+  final Issue issue;
+
+  const _PrioritySection({required this.issue});
+
+  @override
+  Widget build(BuildContext context) {
+    final score = issue.priority;
+    return _SectionCard(
+      title: 'Priority',
+      icon: Icons.tune,
+      children: [
+        Row(
+          children: [
+            PriorityChip(label: issue.priorityLabel),
+            if (score != null) ...[
+              const SizedBox(width: 10),
+              Text(
+                '${score.round()}/100',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ],
+        ),
+        if (issue.priorityReasons.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          for (final reason in issue.priorityReasons)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 16,
+                    color: priorityColor(issue.priorityLabel),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      reason,
+                      style: const TextStyle(fontSize: 13, height: 1.3),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Text(
+              'Rule-based prioritisation — not a trained ML model.',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ConsolidationBanner extends StatelessWidget {
+  final String masterId;
+
+  const _ConsolidationBanner({required this.masterId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.merge_type, color: AppColors.primary, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'This report was consolidated with Issue #$masterId.',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -597,7 +708,10 @@ class _TimelineRow extends StatelessWidget {
                 ),
                 if (!isLast)
                   Expanded(
-                    child: Container(width: 2, color: Colors.grey[300]),
+                    child: Container(
+                      width: 2,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
               ],
             ),
@@ -682,9 +796,9 @@ class _SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -8,24 +8,38 @@ class AppTheme {
   static const _secondaryColor = Color(0xFF34A853);
   static const _errorColor = Color(0xFFD93025);
 
-  static final ColorScheme _colorScheme = ColorScheme.fromSeed(
+  static ThemeData get lightTheme => _build(_lightScheme);
+
+  static ThemeData get darkTheme => _build(_darkScheme);
+
+  static final ColorScheme _lightScheme = ColorScheme.fromSeed(
     seedColor: _primaryColor,
     secondary: _secondaryColor,
     error: _errorColor,
     brightness: Brightness.light,
   );
 
-  static ThemeData get lightTheme {
+  static final ColorScheme _darkScheme = ColorScheme.fromSeed(
+    seedColor: _primaryColor,
+    secondary: _secondaryColor,
+    error: _errorColor,
+    brightness: Brightness.dark,
+  );
+
+  static ThemeData _build(ColorScheme scheme) {
+    final isDark = scheme.brightness == Brightness.dark;
     return ThemeData(
       useMaterial3: true,
-      colorScheme: _colorScheme,
-      scaffoldBackgroundColor: const Color(0xFFF8F9FA),
+      colorScheme: scheme,
+      scaffoldBackgroundColor: isDark
+          ? const Color(0xFF14181D)
+          : const Color(0xFFF8F9FA),
       fontFamily: 'Roboto',
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: _colorScheme.primary,
-        foregroundColor: _colorScheme.onPrimary,
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
         systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -46,14 +60,20 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.grey.shade100,
+        fillColor: isDark
+            ? scheme.surfaceContainerHighest.withValues(alpha: 0.6)
+            : Colors.grey.shade100,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(
+            color: isDark
+                ? scheme.outline
+                : Colors.grey.shade300,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -76,10 +96,10 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        side: BorderSide(color: _colorScheme.outlineVariant),
-        selectedColor: _colorScheme.primaryContainer,
-        labelStyle: TextStyle(color: _colorScheme.onSurface),
-        secondaryLabelStyle: TextStyle(color: _colorScheme.onSurface),
+        side: BorderSide(color: scheme.outlineVariant),
+        selectedColor: scheme.primaryContainer,
+        labelStyle: TextStyle(color: scheme.onSurface),
+        secondaryLabelStyle: TextStyle(color: scheme.onSurface),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -91,13 +111,13 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,
-        indicatorColor: _colorScheme.secondaryContainer,
+        indicatorColor: scheme.secondaryContainer,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
             color: states.contains(WidgetState.selected)
-                ? _colorScheme.onSecondaryContainer
-                : _colorScheme.onSurfaceVariant,
+                ? scheme.onSecondaryContainer
+                : scheme.onSurfaceVariant,
           ),
         ),
       ),

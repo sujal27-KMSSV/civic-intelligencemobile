@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/theme/appearance_provider.dart';
 import '../auth/auth_state.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -81,6 +82,51 @@ class ProfileScreen extends ConsumerWidget {
                   subtitle: const Text('Status updates'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.go('/notifications'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.brightness_6_outlined),
+                        title: Text('Appearance'),
+                        subtitle: Text('Theme for the whole app'),
+                      ),
+                      SegmentedButton<ThemeMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('System'),
+                            icon: Icon(Icons.brightness_auto_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('Light'),
+                            icon: Icon(Icons.light_mode_outlined),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('Dark'),
+                            icon: Icon(Icons.dark_mode_outlined),
+                          ),
+                        ],
+                        selected: {
+                          (ref.watch(appearanceProvider).valueOrNull ??
+                              ThemeMode.system)
+                        },
+                        onSelectionChanged: (selection) => ref
+                            .read(appearanceProvider.notifier)
+                            .setMode(selection.first),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
