@@ -10,10 +10,12 @@ same and the mobile payload stays the same.
 
 Capabilities implemented here:
 
-* DUPLICATE INTELLIGENCE  -- combine GPS proximity (haversine), category match,
-  free-text description overlap AND perceptual-image similarity (dHash on the
-  report photo) into an explainable similarity score (with per-signal evidence),
-  then attach the new report to an existing cluster (root/master issue). The
+* DUPLICATE INTELLIGENCE (v3) -- combine GPS proximity (haversine), category
+  match, free-text description overlap, perceptual-image similarity (dHash on
+  the report photo) AND — when the optional AI sidecar is reachable — a real
+  embedding cosine signal, into an explainable similarity score (with per-signal
+  evidence), then attach the new report to an existing cluster (root/master
+  issue). Missing signals drop their weight and the rest renormalize.
   root accumulates ``duplicate_count`` so "17 citizens report the same pothole"
   becomes one prioritized issue with 17 supporting reports. Cluster joins are
   serialized with ``select_for_update`` so concurrent submissions cannot
@@ -112,15 +114,36 @@ DUPLICATE_SEVERITY_UPLIFT = 3.0
 DUPLICATE_SEVERITY_MAX = 15.0
 
 # --------------------------------------------------------------------------
-# Duplicate detection constants (engine v2: GPS + category + text + IMAGE).
+# Duplicate detection constants (engine v3: GPS + category + text + IMAGE +
+# optional AI EMBEDDING signal). Weights sum to 1.0; when a signal cannot be
+# measured its weight is dropped and the rest renormalized.
 # --------------------------------------------------------------------------
 DUPLICATE_RADIUS_M = 120.0          # GPS proximity window (hard veto beyond it).
 DESC_TOKEN_MIN_LEN = 3              # ignore very short description tokens.
-GPS_SIM_WEIGHT = 0.30               # weight of GPS proximity in the score.
-CATEGORY_MATCH_WEIGHT = 0.15        # weight of category equality.
-DESC_SIM_WEIGHT = 0.25              # weight of text similarity in the score.
-IMAGE_SIM_WEIGHT = 0.30             # weight of perceptual-identical photo.
+GPS_SIM_WEIGHT = 0.24               # weight of GPS proximity in the score.
+CATEGORY_MATCH_WEIGHT = 0.10        # weight of category equality.
+DESC_SIM_WEIGHT = 0.20              # weight of text similarity in the score.
+IMAGE_SIM_WEIGHT = 0.21             # weight of perceptual-identical photo.
+EMBEDDING_SIM_WEIGHT = 0.25         # weight of AI embedding cosine similarity.
 DUPLICATE_MIN_SCORE = 0.60          # below this, treat as a new issue.
+
+
+def duplicate_weights() -> dict:
+    """Configurable engine-v3 signal weights (settings.CIVIC_DUPLICATE_WEIGHTS).
+
+    The dict has string keys ``gps``/``category``/``text``/``image``/``embedding``
+    and must sum to 1.0 (the scorer renormalizes defensively anyway).
+    """
+    override = getattr(settings, "CIVIC_DUPLICATE_WEIGHTS", None)
+    if isinstance(override, dict) and override:
+        return dict(override)
+    return {
+        "gps": GPS_SIM_WEIGHT,
+        "category": CATEGORY_MATCH_WEIGHT,
+        "text": DESC_SIM_WEIGHT,
+        "image": IMAGE_SIM_WEIGHT,
+        "embedding": EMBEDDING_SIM_WEIGHT,
+    }
 
 # --------------------------------------------------------------------------
 # Priority-scoring constants (rule-based, explainable).
@@ -215,8 +238,10 @@ def duplicate_similarity_score(
     text1: str,
     text2: str,
     image_sim: float | None = None,
+    embedding_sim: float | None = None,
+    weights: dict | None = None,
 ) -> dict:
-    """Weighted similarity between two reports.
+    """Weighted similarity between two reports (engine v3).
 
     Returns a dict with the total plus a per-signal breakdown so the engine can
     explain *why* two reports were (or were not) merged:
@@ -229,11 +254,13 @@ def duplicate_similarity_score(
         {"name": "category", "value": 0..1},
         {"name": "text", "value": 0..1},
         {"name": "image", "value": 0..1 or null},
+        {"name": "embedding", "value": 0..1 or null},
       ],
     }
 
-    ``image_sim`` is an optional 0..1 perceptual-similarity value (1 = the two
-    photos are essentially the same scene). A ``None`` image signal scores 0.
+    ``image_sim`` / ``embedding_sim`` are optional 0..1 values; a ``None``
+    signal simply drops its weight and the remaining weights are renormalized
+    (so a missing AI embedding never lowers the other signals' influence).
 
     HARD VETO: reports farther apart than ``DUPLICATE_RADIUS_M`` never merge,
     no matter how similar their text or photo is (a location is required for
@@ -246,14 +273,28 @@ def duplicate_similarity_score(
     gps_sim = max(0.0, 1.0 - dist_m / DUPLICATE_RADIUS_M)
     cat_sim = 1.0 if category1 == category2 else 0.0
     txt_sim = text_similarity(text1, text2)
-    img_sim = image_sim if image_sim is not None else 0.0
-    img_sim = max(0.0, min(1.0, img_sim))
+    img_sim = max(0.0, min(1.0, image_sim if image_sim is not None else 0.0))
+    emb_sim = max(0.0, min(1.0, embedding_sim if embedding_sim is not None else 0.0))
+
+    w = dict(weights or duplicate_weights())
+    if embedding_sim is None:
+        w.pop("embedding", None)
+    if image_sim is None:  # no second photo to compare -> no image weight
+        w.pop("image", None)
+    denom = sum(w.values()) or 1.0
+    f = 1.0 / denom
+    w_gps = w.get("gps", 0.0) * f
+    w_cat = w.get("category", 0.0) * f
+    w_txt = w.get("text", 0.0) * f
+    w_img = w.get("image", 0.0) * f
+    w_emb = w.get("embedding", 0.0) * f
 
     score = (
-        gps_sim * GPS_SIM_WEIGHT
-        + cat_sim * CATEGORY_MATCH_WEIGHT
-        + txt_sim * DESC_SIM_WEIGHT
-        + img_sim * IMAGE_SIM_WEIGHT
+        gps_sim * w_gps
+        + cat_sim * w_cat
+        + txt_sim * w_txt
+        + img_sim * w_img
+        + emb_sim * w_emb
     )
     return {
         "score": round(score, 4),
@@ -263,8 +304,21 @@ def duplicate_similarity_score(
             {"name": "category", "value": round(cat_sim, 4)},
             {"name": "text", "value": round(txt_sim, 4)},
             {"name": "image", "value": round(img_sim, 4) if image_sim is not None else None},
+            {"name": "embedding", "value": round(emb_sim, 4) if embedding_sim is not None else None},
         ],
+        "weights": {k: round(v * f, 4) for k, v in w.items()},
     }
+
+
+def embedding_cosine(a: list | None, b: list | None) -> float | None:
+    """Cosine similarity of two L2-normalized embedding vectors.
+
+    Returns ``None`` when either side is missing or dimensions mismatch (the
+    engine then renormalizes the remaining signals instead of guessing).
+    """
+    if not a or not b or len(a) != len(b):
+        return None
+    return round(sum(x * y for x, y in zip(a, b)), 4)
 
 
 def score_severity(
@@ -480,6 +534,50 @@ def run_analysis(issue) -> dict:
     issue.image_dhash = (features.get("dhash") or "")[:64]
     issue.image_brightness = features.get("brightness")
 
+    # -- optional AI sidecar (engine v3) -----------------------------------
+    # When configured and reachable, ask the AI service for a real image
+    # embedding, generic detections and an advisory ML priority prediction.
+    # Any failure degrades gracefully to the rule-based path below.
+    from .ai import ai_service_url, image_analysis, priority_predict
+
+    vision: dict = {"status": "not_analyzed", "service": None}
+    embedding: list = []
+    if ai_service_url():
+        payload = image_analysis(issue.image.name)
+        if payload is not None:
+            embedding = payload.get("embedding", {}).get("values") or []
+            classifier = payload.get("classifier")
+            vision = {
+                "status": "ok",
+                "service": ai_service_url(),
+                "models": {
+                    "embedding": payload.get("embedding", {}).get("model"),
+                    "classifier": classifier.get("model") if classifier else None,
+                    "detection": (
+                        "yolo-coco"
+                        if any("YOLO" in n for n in payload.get("notes", []))
+                        else None
+                    ),
+                },
+                "detections": payload.get("detections", []),
+                "classifier_labels": [
+                    item["label"]
+                    for item in (classifier or {}).get("top", [])[:3]
+                ],
+                "vision_notes": payload.get("notes", []),
+            }
+        else:
+            vision = {
+                "status": "unavailable",
+                "service": ai_service_url(),
+                "vision_notes": [
+                    "AI service did not return an analysis; using the "
+                    "rule-based path."
+                ],
+            }
+    issue.vision_embedding = embedding
+    issue.vision = vision
+
     for other in candidates:
         # Reuse the candidate's cached hash when present; otherwise compute it
         # once (legacy rows) and lazily cache so later comparisons are free.
@@ -491,6 +589,11 @@ def run_analysis(issue) -> dict:
         img_sim = None
         if issue.image_dhash and other_dhash:
             img_sim = dhash_similarity(issue.image_dhash, other_dhash)
+        emb_sim = None
+        if issue.vision_embedding and other.vision_embedding:
+            emb_sim = embedding_cosine(
+                issue.vision_embedding, other.vision_embedding
+            )
 
         result = duplicate_similarity_score(
             lat1=lat,
@@ -502,6 +605,7 @@ def run_analysis(issue) -> dict:
             text1=issue.description,
             text2=other.description,
             image_sim=img_sim,
+            embedding_sim=emb_sim,
         )
         if result["score"] > best_score:
             best_score = result["score"]
@@ -551,9 +655,41 @@ def run_analysis(issue) -> dict:
     issue.priority_label = priority_result["label"]
     issue.priority_reasons = priority_result["reasons"]
 
+    # Advisory ML priority prediction (engine v3). Never overrides the rules —
+    # it is stored/displayed as a learned estimate alongside the explainable one.
+    priority_model_score = None
+    if vision.get("status") == "ok":
+        from django.utils import timezone as _tz
+
+        age_h = (
+            max(0.0, (_tz.now() - issue.created_at).total_seconds() / 3600.0)
+            if issue.created_at is not None
+            else 0.0
+        )
+        pred = priority_predict(
+            severity=severity_level,
+            duplicate_count=max(duplicate_count, 1),
+            age_hours=age_h,
+            is_master=False,
+        )
+        if pred is not None and isinstance(pred.get("score"), (int, float)):
+            priority_model_score = float(pred["score"])
+            vision["priority_model"] = {
+                "model": pred.get("model"),
+                "score": priority_model_score,
+                "label": pred.get("label"),
+                "honest_note": pred.get("honest_note"),
+                "explanation": pred.get("explanation"),
+            }
+            issue.vision = vision
+    issue.priority_model_score = priority_model_score
+
     analysis = {
-        "engine": "rule-based-civic-analysis-v2",
-        "engine_honest_label": "Rule-based analysis (not a trained ML model)",
+        "engine": "rule-based-civic-analysis-v3",
+        "engine_honest_label": (
+            "Rule-based analysis with optional AI sidecar (embeddings / "
+            "detections / advisory prediction); no fabricated AI claims."
+        ),
         "duplicate": {
             "is_duplicate": is_duplicate,
             "similarity_score": similarity,
@@ -577,6 +713,7 @@ def run_analysis(issue) -> dict:
             "median_dhash": issue.image_dhash,
             "brightness": issue.image_brightness,
         },
+        "vision": vision,
         "department": department,
         "department_by": "category-routing-table",
     }
@@ -600,6 +737,9 @@ def run_analysis(issue) -> dict:
         "priority_reasons",
         "image_dhash",
         "image_brightness",
+        "vision_embedding",
+        "vision",
+        "priority_model_score",
         "analysis",
         "updated_at",
     ])

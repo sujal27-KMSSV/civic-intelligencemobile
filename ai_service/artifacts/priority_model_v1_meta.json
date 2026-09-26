@@ -1,0 +1,27 @@
+{
+  "model": "GradientBoostingRegressor",
+  "version": "v1",
+  "features": [
+    "severity_code",
+    "duplicate_count",
+    "age_hours_capped72",
+    "is_master"
+  ],
+  "feature_importances": {
+    "severity_code": 0.5924,
+    "duplicate_count": 0.3294,
+    "age_hours_capped72": 0.0566,
+    "is_master": 0.0217
+  },
+  "metrics": {
+    "mae_points": 0.827,
+    "rmse_points": 1.041,
+    "r2": 0.9946,
+    "label_band_accuracy": 1.0,
+    "n_train": 6400,
+    "n_test": 1600
+  },
+  "baseline_score": 39.66913071584334,
+  "target": "rule_priority_score_0_100",
+  "honest_label": "Prototype model trained on the audited rule-based priority policy's own scores. It approximates the rule; it was NOT trained or calibrated on real-world field triage data."
+}

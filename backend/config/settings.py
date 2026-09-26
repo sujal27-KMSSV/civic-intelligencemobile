@@ -188,3 +188,23 @@ if MEDIA_STORAGE_BACKEND == "s3":
     STORAGES["default"] = {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------------------------------------------------------------------------
+# Optional AI service (FixMyGrid FastAPI sidecar). When AI_SERVICE_URL is empty
+# the civic engine is rule-based exactly as before. When set, the engine asks
+# the sidecar for image embeddings / detections / a learned priority prediction
+# and degrades gracefully on any failure or timeout.
+# ---------------------------------------------------------------------------
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "").strip()
+AI_SERVICE_TIMEOUT = float(os.getenv("AI_SERVICE_TIMEOUT", "4"))
+# Duplicate-intelligence weights (engine v3, must sum to 1.0). Overridable via
+# CIVIC_DUPLICATE_WEIGHTS={"gps":0.24,"category":0.10,"text":0.20,"image":0.21,
+# "embedding":0.25}. When the embedding signal is absent it is dropped and the
+# remaining weights are renormalized so the score stays a 0..1 probability.
+CIVIC_DUPLICATE_WEIGHTS = {
+    "gps": float(os.getenv("W_GPS", "0.24")),
+    "category": float(os.getenv("W_CATEGORY", "0.10")),
+    "text": float(os.getenv("W_TEXT", "0.20")),
+    "image": float(os.getenv("W_IMAGE", "0.21")),
+    "embedding": float(os.getenv("W_EMBEDDING", "0.25")),
+}

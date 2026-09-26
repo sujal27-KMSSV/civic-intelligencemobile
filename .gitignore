@@ -88,5 +88,15 @@ backend/*.err.log
 # Render CLI session
 ~/.render/
 
+# AI service (FastAPI sidecar): venv, downloaded weights, trained-joblib and
+# SQLite-less caches are runtime artifacts; keep the meta/manifest JSON tracked.
+ai_service/.venv/
+ai_service/datasets/
+ai_service/artifacts/*.joblib
+ai_service/models/
+ai_service/yolov8n.pt
+ai_service/**/__pycache__/
+ai_service/.pytest_cache/
+
 # Private release assets (keystore backups, signing properties) — never share
 release/private/

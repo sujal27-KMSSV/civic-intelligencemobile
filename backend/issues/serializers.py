@@ -61,6 +61,10 @@ class IssueSerializer(serializers.ModelSerializer):
     priority = serializers.FloatField(read_only=True)
     priority_label = serializers.CharField(read_only=True)
     priority_reasons = serializers.JSONField(read_only=True)
+    # Optional AI-sidecar analysis (engine v3): vision block + advisory ML
+    # priority prediction. Empty when the AI service was unavailable.
+    vision = serializers.JSONField(read_only=True)
+    priority_model_score = serializers.FloatField(read_only=True)
     # Duplicate-cluster context: which report is the cluster master, and (for
     # the master) the ids of the supporting reports it consolidates.
     master_id = serializers.SerializerMethodField(read_only=True)
@@ -98,6 +102,8 @@ class IssueSerializer(serializers.ModelSerializer):
             "priority",
             "priority_label",
             "priority_reasons",
+            "vision",
+            "priority_model_score",
             "master_id",
             "is_master",
             "cluster_size",

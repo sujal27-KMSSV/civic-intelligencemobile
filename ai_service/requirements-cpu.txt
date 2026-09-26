@@ -1,0 +1,4 @@
+# CPU-only PyTorch wheels (no CUDA). Install on top of requirements.txt.
+torch --index-url https://download.pytorch.org/whl/cpu
+torchvision --index-url https://download.pytorch.org/whl/cpu
+ultralytics

@@ -112,6 +112,17 @@ class Issue(models.Model):
     # and resolution comparison reuse it instead of re-reading media files.
     image_dhash = models.CharField(max_length=64, blank=True, default="")
     image_brightness = models.FloatField(blank=True, null=True)
+    # Optional AI-service fields (engine v3). Empty list / "not_analyzed" mean
+    # the AI service was not configured at submission time — the rule-based
+    # analysis is authoritative either way. vision_embedding is an L2-normalized
+    # feature vector (e.g. 576-dim torchvision CNN), consumed only by the
+    # duplicate-intelligence engine when present.
+    vision_embedding = models.JSONField(blank=True, default=list)
+    vision = models.JSONField(blank=True, default=dict)
+    # Learned prototype priority prediction (0..100) when the AI service
+    # returned one. Advisory only — the operative, explainable priority stays
+    # rule-based in `priority` / `priority_label`.
+    priority_model_score = models.FloatField(blank=True, null=True)
 
     # Resolution lifecycle (authority-driven).
     resolution_image = models.ImageField(
