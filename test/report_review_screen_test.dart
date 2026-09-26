@@ -81,8 +81,9 @@ void main() {
 
     // Navigates to the AI result screen.
     expect(find.text('Report CI-1043 submitted'), findsOneWidget);
+    expect(find.text('View Issue'), findsOneWidget);
     expect(find.text('View My Reports'), findsOneWidget);
-    expect(find.text('Submit Another'), findsOneWidget);
+    expect(find.text('Back to Home'), findsOneWidget);
 
     await bringIntoView(tester, find.text('Pothole'));
     expect(find.text('Pothole'), findsOneWidget);

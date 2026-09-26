@@ -36,7 +36,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
       appBar: AppBar(title: const Text('My Reports')),
       body: SafeArea(
         child: reportsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const _LoadingState(),
           error: (error, stack) => EmptyState(
             icon: Icons.cloud_off_outlined,
             title: 'Could not load reports',
@@ -108,7 +108,7 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
                   itemCount: issues.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final issue = issues[index];
+final issue = issues[index];
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -151,10 +151,15 @@ class _MyReportsScreenState extends ConsumerState<MyReportsScreen> {
 
   Widget _emptyState() {
     if (_selected == null) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.inbox_outlined,
         title: 'No reports yet',
-        message: 'Submit your first report and track its status here.',
+        message: 'Help improve your city by reporting your first issue.',
+        action: FilledButton.icon(
+          onPressed: () => context.go('/report'),
+          icon: const Icon(Icons.add_a_photo_outlined),
+          label: const Text('Report an issue'),
+        ),
       );
     }
     return const EmptyState(
@@ -259,6 +264,25 @@ class _FilterChip extends StatelessWidget {
       labelStyle: TextStyle(
         fontWeight: selected ? FontWeight.bold : FontWeight.normal,
       ),
+    );
+  }
+}
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        CircularProgressIndicator(),
+        SizedBox(height: 16),
+        Text(
+          'Loading your reports…',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ],
     );
   }
 }

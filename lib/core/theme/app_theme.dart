@@ -19,6 +19,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: _colorScheme,
+      scaffoldBackgroundColor: const Color(0xFFF8F9FA),
       fontFamily: 'Roboto',
       appBarTheme: AppBarTheme(
         centerTitle: true,

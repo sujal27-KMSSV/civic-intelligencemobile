@@ -185,8 +185,24 @@ void main() {
       timeout: const Duration(seconds: 90),
     );
 
+    // ---- SUCCESS SCREEN ACTIONS ------------------------------------------
+    // The new post-submit choices render alongside the existing action.
+    expect(find.text('View Issue'), findsOneWidget);
+    expect(find.text('Back to Home'), findsOneWidget);
+    expect(find.text('View My Reports'), findsOneWidget);
+
+    // ---- VIEW ISSUE ------------------------------------------------------
+    await _tap(tester, find.text('View Issue'));
+    await _pumpUntil(tester, find.text('Status timeline'));
+    expect(find.text(description), findsOneWidget);
+    expect(find.textContaining('Issue #'), findsOneWidget);
+
+    // Back out to the shell home.
+    await _tap(tester, find.byTooltip('Back'));
+    await _pumpUntil(tester, find.text('Community Reports'));
+
     // ---- MY REPORTS ---------------------------------------------------------
-    await _tap(tester, find.text('View My Reports'));
+    await _tap(tester, find.text('Reports'));
     await _pumpUntil(tester, find.text('My Reports'));
     await _pumpUntil(tester, find.text(description));
 
@@ -195,5 +211,13 @@ void main() {
     await _pumpUntil(tester, find.text('Status timeline'));
     expect(find.text(description), findsOneWidget);
     expect(find.textContaining('Issue #'), findsOneWidget);
+
+    // ---- PROFILE VERSION ----------------------------------------------------
+    await _tap(tester, find.byTooltip('Back'));
+    await _pumpUntil(tester, find.text('My Reports'));
+    await _tap(tester, find.text('Profile'));
+    await _pumpUntil(tester, find.text('Logout'));
+    await tester.ensureVisible(find.text('Version 1.0.3'));
+    expect(find.text('Version 1.0.3'), findsOneWidget);
   });
 }

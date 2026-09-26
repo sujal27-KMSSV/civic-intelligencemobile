@@ -423,11 +423,11 @@ class _SelectedIssueCard extends StatelessWidget {
                   ),
                 ),
                 if ((analysis?.duplicateCount ?? 0) > 0) ...[
-                  Icon(Icons.content_copy_outlined,
+                  Icon(Icons.groups_outlined,
                       size: 14, color: Colors.grey[500]),
                   const SizedBox(width: 4),
                   Text(
-                    '${analysis!.duplicateCount} duplicate'
+                    '${analysis!.duplicateCount} supporting report'
                     '${analysis.duplicateCount == 1 ? '' : 's'}',
                     style: TextStyle(color: Colors.grey[500], fontSize: 12),
                   ),

@@ -118,7 +118,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Pothole'), findsOneWidget);
-    expect(find.text('10 duplicates'), findsOneWidget);
+    expect(find.text('10 supporting reports'), findsOneWidget);
     expect(find.text('View details'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.close));

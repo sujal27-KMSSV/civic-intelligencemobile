@@ -48,7 +48,8 @@ void main() {
     expect(find.text('Uploaded recently'), findsOneWidget);
   });
 
-  testWidgets('card shows severity, date and duplicate count', (tester) async {
+  testWidgets('card shows severity, date and supporting reports count',
+      (tester) async {
     final issue = Issue(
       id: 'CI-1035',
       description: 'Broken signal',
@@ -69,8 +70,8 @@ void main() {
 
     expect(find.text('Traffic Signal'), findsOneWidget);
     expect(find.text('High'), findsOneWidget);
-    expect(find.text('5 Jan 2026'), findsOneWidget);
-    expect(find.text('17 duplicates'), findsOneWidget);
+    expect(find.text('Reported 5 Jan 2026'), findsOneWidget);
+    expect(find.text('17 supporting reports'), findsOneWidget);
   });
 
   testWidgets('empty repository shows the empty state', (tester) async {
@@ -396,7 +397,8 @@ void main() {
     expect(find.text('12.97160, 77.59456'), findsOneWidget);
     // No secondary coordinate line when the coordinates ARE the location.
     expect(find.byIcon(Icons.pin_drop_outlined), findsNothing);
-    expect(find.text('Created 5 Jan 2026 · Updated 5 Jan 2026'), findsOneWidget);
+    expect(
+        find.text('Reported 5 Jan 2026 · Updated 5 Jan 2026'), findsOneWidget);
   });
 
   testWidgets('coordinates are a secondary line beneath a friendly address',

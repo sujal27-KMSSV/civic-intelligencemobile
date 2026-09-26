@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../auth/auth_state.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -61,11 +62,6 @@ class ProfileScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Edit profile',
-                    ),
                   ],
                 ),
               ),
@@ -86,28 +82,17 @@ class ProfileScreen extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.go('/notifications'),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.language_outlined),
-                  title: const Text('Language'),
-                  subtitle: const Text('English'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
               ],
             ),
             const SizedBox(height: 12),
             _SectionCard(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.help_outline),
-                  title: const Text('Help & Support'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () {},
-                ),
-                ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: const Text('About FixMyGrid'),
-                  subtitle: const Text('v1.0.0'),
+                  subtitle: const Text(
+                    'Version ${AppConstants.appVersion}',
+                  ),
                   onTap: () {},
                 ),
               ],

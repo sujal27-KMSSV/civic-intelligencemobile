@@ -88,7 +88,8 @@ void main() {
     expect(find.text('Reported'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('View My Reports'), findsOneWidget);
-    expect(find.text('Submit Another'), findsOneWidget);
+    expect(find.text('View Issue'), findsOneWidget);
+    expect(find.text('Back to Home'), findsOneWidget);
   });
 
   testWidgets('duplicate issue shows the duplicate banner with the count',
@@ -102,6 +103,12 @@ void main() {
       ],
     );
 
+    await tester.scrollUntilVisible(
+      find.text('Possible duplicate'),
+      80,
+      scrollable: find.byType(Scrollable).first,
+    );
+
     expect(find.text('Possible duplicate'), findsOneWidget);
     expect(find.text('17 supporting reports'), findsOneWidget);
     expect(find.text('New issue'), findsNothing);
@@ -110,6 +117,11 @@ void main() {
   testWidgets('new issue is shown as such', (tester) async {
     await pumpResult(tester, [ReportSubmissionState.success(makeIssue())]);
 
+    await tester.scrollUntilVisible(
+      find.text('New issue'),
+      80,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('New issue'), findsOneWidget);
     expect(find.textContaining('No similar reports'), findsOneWidget);
     expect(find.text('Possible duplicate'), findsNothing);

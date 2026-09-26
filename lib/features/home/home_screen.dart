@@ -113,12 +113,7 @@ class HomeScreen extends ConsumerWidget {
     return issuesAsync.when(
       loading: () {
         if (issues.isEmpty) {
-          return const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 64),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          );
+          return const _FeedSkeleton();
         }
         return _buildList(issues);
       },
@@ -396,6 +391,115 @@ class _QuickReportCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Lightweight shimmer-style skeleton shown while the community feed is
+/// loading for the first time. Static grey blocks with a soft pulse — no
+/// network calls, no spinners, keeps the header visible while it renders.
+class _FeedSkeleton extends StatefulWidget {
+  const _FeedSkeleton();
+
+  @override
+  State<_FeedSkeleton> createState() => _FeedSkeletonState();
+}
+
+class _FeedSkeletonState extends State<_FeedSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.45, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: FadeTransition(
+        opacity: _opacity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            children: [
+              for (var i = 0; i < 3; i++) ...[
+                const _SkeletonCard(),
+                if (i < 2) const SizedBox(height: 12),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonCard extends StatelessWidget {
+  const _SkeletonCard();
+
+  BoxDecoration _bar(Color color, [double radius = 6]) => BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    const block = Color(0xFFE7EAF0);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEEF0F4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Container(
+              decoration: _bar(block, 12),
+            ),
+          ),
+          const SizedBox(height: 12),
+          FractionallySizedBox(
+            widthFactor: 0.55,
+            child: Container(height: 16, decoration: _bar(block)),
+          ),
+          const SizedBox(height: 8),
+          FractionallySizedBox(
+            widthFactor: 0.8,
+            child: Container(height: 12, decoration: _bar(block)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Container(height: 12, decoration: _bar(block)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(height: 12, decoration: _bar(block)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

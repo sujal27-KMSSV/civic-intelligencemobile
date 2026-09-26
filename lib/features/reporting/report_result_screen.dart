@@ -23,15 +23,23 @@ class ReportResultScreen extends ConsumerStatefulWidget {
 }
 
 class _ReportResultScreenState extends ConsumerState<ReportResultScreen> {
-  void _finish({required bool toMyReports}) {
+  void _finish({required String path}) {
     ref.read(reportSubmissionProvider.notifier).reset();
     ref.read(reportDraftProvider.notifier).reset();
     Navigator.of(context).popUntil((route) => route.isFirst);
-    if (toMyReports) {
-      context.go('/my-reports');
-    } else {
-      context.go('/report');
-    }
+    context.go(path);
+  }
+
+  void _viewIssue() {
+    final issue = ref.read(reportSubmissionProvider).issue;
+    if (issue == null) return;
+    ref.read(reportSubmissionProvider.notifier).reset();
+    ref.read(reportDraftProvider.notifier).reset();
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Landing on the home branch underneath makes the back arrow return to the
+    // community feed instead of the half-finished report form.
+    context.go('/');
+    context.push('/issue/${issue.id}', extra: issue);
   }
 
   void _retry() {
@@ -55,8 +63,9 @@ class _ReportResultScreenState extends ConsumerState<ReportResultScreen> {
       child: switch (submission.phase) {
         SubmitPhase.success => _ResultSuccess(
             issue: submission.issue!,
-            onViewMyReports: () => _finish(toMyReports: true),
-            onSubmitAnother: () => _finish(toMyReports: false),
+            onViewMyReports: () => _finish(path: '/my-reports'),
+            onViewIssue: _viewIssue,
+            onBackHome: () => _finish(path: '/'),
           ),
         SubmitPhase.failure => _ResultError(
             message: submission.errorMessage ?? 'Could not submit your report.',
@@ -210,12 +219,14 @@ class _ResultSuccess extends StatelessWidget {
   const _ResultSuccess({
     required this.issue,
     required this.onViewMyReports,
-    required this.onSubmitAnother,
+    required this.onViewIssue,
+    required this.onBackHome,
   });
 
   final Issue issue;
   final VoidCallback onViewMyReports;
-  final VoidCallback onSubmitAnother;
+  final VoidCallback onViewIssue;
+  final VoidCallback onBackHome;
 
   AiAnalysis get _analysis =>
       issue.analysis ??
@@ -245,6 +256,12 @@ class _ResultSuccess extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 children: [
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 64,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     'Report ${issue.id} submitted',
                     textAlign: TextAlign.center,
@@ -278,6 +295,15 @@ class _ResultSuccess extends StatelessWidget {
                     _LowConfidenceNote(percent: confidencePercent),
                   ],
                   const SizedBox(height: 16),
+                  if (issue.address != null &&
+                      issue.address!.trim().isNotEmpty) ...[
+                    _DetailCard(
+                      icon: Icons.location_on_outlined,
+                      label: 'Address',
+                      value: issue.address!,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -307,15 +333,21 @@ class _ResultSuccess extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   FilledButton.icon(
+                    onPressed: onViewIssue,
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('View Issue'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
                     onPressed: onViewMyReports,
                     icon: const Icon(Icons.list_alt),
                     label: const Text('View My Reports'),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: onSubmitAnother,
-                    icon: const Icon(Icons.add_a_photo_outlined),
-                    label: const Text('Submit Another'),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: onBackHome,
+                    icon: const Icon(Icons.home_outlined),
+                    label: const Text('Back to Home'),
                   ),
                 ],
               ),
