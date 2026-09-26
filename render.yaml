@@ -49,6 +49,23 @@ services:
       - key: GEOSPAT_ENABLED
         value: "False"
 
+  # Authority Admin — React + TypeScript single-page app, served as static
+  # assets. Vite inlines VITE_* variables at BUILD time, so this value is
+  # pinned here (not sync:false): the Admin always talks to the public API and
+  # never to localhost. BrowserRouter needs the rewrite below or a hard refresh
+  # on /issues/<id> would 404.
+  - type: static
+    name: civic-intelligence-authority
+    rootDir: authority-web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://civic-intelligence-api.onrender.com
+    routes:
+      - type: rewrite
+        destination: /index.html
+
   # Optional AI sidecar (ai_service/). Skip this service on free tier --
   # inference needs ~2 GB RAM. The API degrades to rule-based without it.
   - type: web

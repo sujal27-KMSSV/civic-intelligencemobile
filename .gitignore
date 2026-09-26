@@ -107,3 +107,11 @@ backup/
 # Release binaries stay untracked (verified artifact convention)
 release/*.apk
 release/*.aab
+# Authority Admin (React + Vite). The nested authority-web/.gitignore also
+# covers these; repeated here so the rules are obvious from the repo root.
+authority-web/node_modules/
+authority-web/dist/
+authority-web/.env
+authority-web/.env.local
+authority-web/.env.*.local
+authority-web/*.tsbuildinfo
