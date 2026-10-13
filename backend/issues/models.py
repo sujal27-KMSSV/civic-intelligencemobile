@@ -86,6 +86,17 @@ class Issue(models.Model):
     department = models.CharField(
         max_length=64, blank=True, default="Unassigned"
     )
+    # Staff dispatch: which authority officer is handling this issue (null =
+    # unassigned). Deleting the officer keeps the report intact (SET_NULL).
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_issues",
+    )
+    # When the current assignment was made. Cleared to NULL on unassign.
+    assigned_at = models.DateTimeField(blank=True, null=True)
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.REPORTED
     )
