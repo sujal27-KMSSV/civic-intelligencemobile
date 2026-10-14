@@ -125,17 +125,39 @@ The mobile app and the admin site already target
 `https://civic-intelligence-api.onrender.com`, so **no APK/admin URL change is
 needed** — the frozen release artifacts stay valid.
 
+**Caveat (Render Free web service + external DB):** Render's docs warn that a
+Free web service "may be suspended" if it "initiates an uncommonly high volume
+of traffic over the public internet," and list *accessing an external database*
+as an example. A low-traffic demo to Neon is fine, but if the service is ever
+suspended for service-initiated traffic, the alternatives are: a same-region
+Render Postgres (reachable over Render's private network, but its Free tier
+still expires in 30 days) or moving the API to another free host. Prefer
+`MEDIA_STORAGE_BACKEND=s3`/object storage only once credentials exist; media on
+the instance disk is lost on every spin-down/redeploy.
+
 ## Staff admin bootstrap (hosts without a shell)
 
-Render free web services have no interactive Shell. Two options:
+Render **Free** web services do not support Shell access, SSH, or one-off jobs
+(confirmed in Render's docs), so an unattended boot step is the only no-cost way
+to create the first admin there. Two options:
 
-1. **Preferred where a shell exists:** run
+1. **Preferred where a shell exists** (paid Render, a VPS, locally):
    `python manage.py bootstrap_admin --email authority@example.com --superuser`.
-2. **No-shell hosts (e.g. Render free):** set `CIVIC_BOOTSTRAP_ADMIN_EMAIL`
-   (and optionally `CIVIC_BOOTSTRAP_ADMIN_SUPERUSER=1`, plus
-   `CIVIC_ADMIN_PASSWORD` to avoid a generated one) on the service. On the next
-   boot the Dockerfile runs the same management command once — idempotent, never
-   resets an existing password, and non-fatal. The generated password is printed
-   **once** to the service's private deploy logs. **Remove the variable after the
-   account exists.** Never expose a bootstrap endpoint or a password in frontend
-   code.
+2. **Shell-less hosts (Render Free):** set all of the following on the service,
+   then deploy once:
+   - `CIVIC_BOOTSTRAP_SECRET` — a strong, private, **backend-only** secret of at
+     least 32 chars (`python -c "import secrets; print(secrets.token_urlsafe(48))"`).
+     This *arms* the mechanism; without it the boot step does nothing.
+   - `CIVIC_BOOTSTRAP_ADMIN_EMAIL` — the admin's email.
+   - `CIVIC_ADMIN_PASSWORD` — the admin's password (required so nothing is
+     generated or written to the logs).
+   - optionally `CIVIC_BOOTSTRAP_ADMIN_SUPERUSER=1` for Django-admin access.
+
+   The Dockerfile runs `manage.py bootstrap_admin --unattended` after `migrate`.
+   That mode **refuses to run** without the strong secret, **never generates or
+   logs a password**, and is **one-time**: once any staff account exists it is a
+   silent no-op. It is also non-fatal — a failure cannot stop the API serving.
+
+   **Remove `CIVIC_BOOTSTRAP_SECRET`, `CIVIC_BOOTSTRAP_ADMIN_EMAIL` and
+   `CIVIC_ADMIN_PASSWORD` after the first successful boot.** Never expose a
+   bootstrap endpoint or a password in frontend code.

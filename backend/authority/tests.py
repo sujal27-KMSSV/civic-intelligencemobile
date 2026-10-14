@@ -1,5 +1,8 @@
 """Tests for the authority dashboard + staff API."""
 
+import os
+from unittest import mock
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -566,3 +569,76 @@ class BootstrapAdminCommandTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("bootstrap_admin")
+
+    def test_unattended_requires_strong_secret(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        # Missing secret.
+        with self.assertRaises(CommandError):
+            call_command(
+                "bootstrap_admin",
+                email="a@example.com",
+                unattended=True,
+            )
+        # Too-short secret.
+        with mock.patch.dict(
+            os.environ,
+            {"CIVIC_BOOTSTRAP_SECRET": "tooshort"},
+        ):
+            with self.assertRaises(CommandError):
+                call_command(
+                    "bootstrap_admin",
+                    email="a@example.com",
+                    unattended=True,
+                )
+        self.assertFalse(User.objects.filter(email="a@example.com").exists())
+
+    def test_unattended_requires_password_env(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with mock.patch.dict(
+            os.environ,
+            {"CIVIC_BOOTSTRAP_SECRET": "s" * 40},
+        ):
+            with self.assertRaises(CommandError):
+                call_command(
+                    "bootstrap_admin",
+                    email="a@example.com",
+                    unattended=True,
+                )
+        self.assertFalse(User.objects.filter(email="a@example.com").exists())
+
+    def test_unattended_creates_once_then_noop(self):
+        from django.core.management import call_command
+
+        env = {
+            "CIVIC_BOOTSTRAP_SECRET": "s" * 40,
+            "CIVIC_ADMIN_PASSWORD": "RootPass9!",
+        }
+        with mock.patch.dict(os.environ, env):
+            call_command(
+                "bootstrap_admin",
+                email="boot@example.com",
+                superuser=True,
+                unattended=True,
+            )
+        user = User.objects.get(email="boot@example.com")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.check_password("RootPass9!"))
+
+        # A second unattended run must NOT create or alter anything.
+        with mock.patch.dict(os.environ, env):
+            call_command(
+                "bootstrap_admin",
+                email="second@example.com",
+                unattended=True,
+            )
+        self.assertFalse(
+            User.objects.filter(email="second@example.com").exists()
+        )
+        # And it must never reset the existing password.
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("RootPass9!"))

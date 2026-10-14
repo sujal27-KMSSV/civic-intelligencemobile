@@ -12,6 +12,21 @@ shown exactly once on stdout. Re-running never resets an existing password.
 A staff account is all the authority JSON API needs (``IsAdminUser`` ==
 ``is_staff``). ``--superuser`` additionally enables the Django admin site for
 this account.
+
+Unattended mode (``--unattended``) exists ONLY for hosts that offer no shell,
+SSH or one-off job (e.g. Render's Free web services). It is deliberately the
+most restrictive path:
+
+* it refuses to run unless ``CIVIC_BOOTSTRAP_SECRET`` is set to a strong value
+  (>= 32 characters) -- a private, backend-only authorization secret;
+* it refuses to run unless ``CIVIC_ADMIN_PASSWORD`` is set, so a password is
+  never generated and never written to the deploy logs;
+* it is ONE-TIME: if any staff account already exists it does nothing and exits
+  successfully, so a later re-enable of the variables cannot mint a new admin.
+
+Because the secret cannot be verified against a caller (there is no request),
+its role is to ARM the mechanism: without an operator explicitly setting a
+long random secret, ``--unattended`` can never create an administrator.
 """
 
 from __future__ import annotations
@@ -22,6 +37,9 @@ import string
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+
+# Minimum length for the unattended bootstrap authorization secret.
+MIN_SECRET_LENGTH = 32
 
 
 def _generate() -> str:
@@ -47,14 +65,43 @@ class Command(BaseCommand):
             action="store_true",
             help="Also grant is_superuser (Django admin access).",
         )
+        parser.add_argument(
+            "--unattended",
+            action="store_true",
+            help="Shell-less host path: requires CIVIC_BOOTSTRAP_SECRET "
+            "(>= 32 chars) and CIVIC_ADMIN_PASSWORD, and refuses to run if a "
+            "staff account already exists (one-time).",
+        )
 
     def handle(self, *args, **options):  # noqa: ANN002, ANN003, ANN001
         User = get_user_model()
+        unattended = bool(options["unattended"])
+
+        if unattended:
+            secret = os.environ.get("CIVIC_BOOTSTRAP_SECRET", "")
+            if len(secret) < MIN_SECRET_LENGTH:
+                raise CommandError(
+                    "Unattended bootstrap requires CIVIC_BOOTSTRAP_SECRET set "
+                    f"to at least {MIN_SECRET_LENGTH} characters."
+                )
+            # One-time: never mint additional admins once one exists.
+            if User.objects.filter(is_staff=True).exists():
+                self.stdout.write(
+                    "Staff account already present; unattended bootstrap is a "
+                    "one-time no-op."
+                )
+                return
+
         email = (options["email"] or "").strip().lower()
         if not email:
             raise CommandError("--email is required.")
 
         provided = options["password"] or os.environ.get("CIVIC_ADMIN_PASSWORD")
+        if unattended and not provided:
+            raise CommandError(
+                "Unattended bootstrap requires CIVIC_ADMIN_PASSWORD; a password "
+                "is never generated or written to the deploy logs in this mode."
+            )
         password = provided or _generate()
         generated = provided is None
         # Never echo a password given on the command line back to stdout/meta.

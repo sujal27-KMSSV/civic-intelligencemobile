@@ -16,11 +16,11 @@ EXPOSE 8000
 
 # Migrate + collectstatic on boot for one-step deploys (idempotent).
 #
-# OPTIONAL one-time staff bootstrap for hosts WITHOUT an interactive shell
-# (e.g. Render's free web service). It only runs when
-# CIVIC_BOOTSTRAP_ADMIN_EMAIL is set, is idempotent (never resets an existing
-# password) and is non-fatal (a bad value can never stop the API from serving).
-# The generated password is printed ONCE to this service's private deploy logs;
-# set CIVIC_ADMIN_PASSWORD to supply your own instead. REMOVE the
-# CIVIC_BOOTSTRAP_ADMIN_EMAIL variable once the admin account exists.
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && if [ -n \"$CIVIC_BOOTSTRAP_ADMIN_EMAIL\" ]; then python manage.py bootstrap_admin --email \"$CIVIC_BOOTSTRAP_ADMIN_EMAIL\" ${CIVIC_BOOTSTRAP_ADMIN_SUPERUSER:+--superuser} || echo 'WARNING: bootstrap_admin failed; continuing startup'; fi && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120"]
+# OPTIONAL one-time staff bootstrap for hosts WITHOUT a shell, SSH or one-off
+# job (e.g. Render's Free web service). It runs only when the strong, private,
+# backend-only CIVIC_BOOTSTRAP_SECRET (>= 32 chars) is present, requires
+# CIVIC_ADMIN_PASSWORD (so no password is generated or logged), is ONE-TIME
+# (a no-op once any staff account exists) and is non-fatal (a bad value can
+# never stop the API from serving). REMOVE all three variables after the first
+# successful boot. See backend/authority/management/commands/bootstrap_admin.py.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && if [ -n \"$CIVIC_BOOTSTRAP_SECRET\" ]; then python manage.py bootstrap_admin --unattended --email \"$CIVIC_BOOTSTRAP_ADMIN_EMAIL\" ${CIVIC_BOOTSTRAP_ADMIN_SUPERUSER:+--superuser} || echo 'WARNING: bootstrap_admin failed; continuing startup'; fi && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120"]
