@@ -34,6 +34,9 @@ startup it downloads the pinned weights and warms models lazily.
 | `SECRET_KEY` | Render `generateValue: true`; never in VCS |
 | `ALLOWED_HOSTS` | prod domain(s); local default `"*"` only for dev |
 | `DB_ENGINE`/`DB_NAME`/`DB_USER`/`DB_PASSWORD`/`DB_HOST`/`DB_PORT` | managed Postgres for prod; SQLite locally |
+| `DB_SSLMODE` | `require` for external managed Postgres (Neon/Supabase/Aiven); unset for a same-network Render DB |
+| `DB_CHANNEL_BINDING` | optional libpq channel binding (Neon may ask for `require`) |
+| `DB_CONN_MAX_AGE` / `DB_CONNECT_TIMEOUT` | seconds; reuse TLS connections (keep below the provider's idle-suspend window) and bound the initial connect wait |
 | `SECURE_SSL_REDIRECT`/`SECURE_HSTS_SECONDS` | `True` / 31536000 in prod |
 | `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS` | set explicitly in prod |
 | `MEDIA_STORAGE_BACKEND` | `local` (default) or `s3` (unused until creds exist) |
@@ -74,3 +77,65 @@ python manage.py showmigrations issues           -> 0007 applied
 - **Migrations** `0007` add the vision/embedding/priority-model columns; the
   server applies them on boot, existing rows keep those fields empty until a
   new analysis touches them (new submissions always compute them).
+
+## Free-tier database recovery (no paid services)
+
+**Context (2026-10):** Render's free Postgres expires **30 days after creation**
+(then a 14-day grace, then deletion) and has **no backups** on free. A free DB
+that expires leaves the API unable to resolve its old internal hostname
+(`failed to resolve host 'dpg-…'`), so `migrate` aborts at boot and the service
+never serves. Render free web services are still free — only the DB expired.
+
+**Chosen free replacement: [Neon](https://neon.tech)** — permanent free plan,
+no credit card, standard Postgres wire protocol (works with `psycopg`), 1 GB per
+project, branch/restore history, and a scale-to-zero compute that wakes in
+~300 ms (the client already tolerates cold starts with a 60 s budget). Supabase
+free pauses after 1 week idle; Aiven free powers off when unused — both are
+viable but need a manual wake, so Neon is preferred here.
+
+**Recovery runbook (all free):**
+
+1. **Export the old data before it is deleted.** Render free has no backups and
+   no `pg_dump` button, but you can dump it from your own machine while it still
+   exists using the database's **External** connection string (Render dashboard
+   → the Postgres → Connections → *External Database URL*):
+
+   ```powershell
+   # $env:OLD_DB_URL = "<external connection string, keep it out of git>"
+   pg_dump --no-owner --no-acl "$env:OLD_DB_URL" | Out-File -Encoding utf8 old-db.sql
+   ```
+
+   If that succeeds, restore it into the new Neon database with
+   `psql "$env:NEW_DB_URL" -f old-db.sql`. **Do not claim the data was recovered
+   without running this and checking the row counts.**
+2. **Create the Neon project** (dashboard, no card) and copy its **pooled**
+   connection details (`…-pooler.<region>.aws.neon.tech`).
+3. **Point the existing Render API service at Neon** (dashboard → the
+   `civic-intelligence-api` service → Environment). Change only the `DB_*`
+   variables; keep every other variable as-is (there is no need to use a Render
+   Blueprint, and the old service/DB is left untouched until this is verified):
+   `DB_HOST` = Neon pooled host, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, keep
+   `DB_PORT=5432`, add `DB_SSLMODE=require`, `DB_CONN_MAX_AGE=60`.
+   Saving triggers a redeploy; the Dockerfile runs `migrate` on boot and builds
+   the schema on the empty Neon DB.
+4. **Verify:** `GET https://civic-intelligence-api.onrender.com/api/health/`
+   returns `{"status":"ok"}`. Only then is recovery real.
+
+The mobile app and the admin site already target
+`https://civic-intelligence-api.onrender.com`, so **no APK/admin URL change is
+needed** — the frozen release artifacts stay valid.
+
+## Staff admin bootstrap (hosts without a shell)
+
+Render free web services have no interactive Shell. Two options:
+
+1. **Preferred where a shell exists:** run
+   `python manage.py bootstrap_admin --email authority@example.com --superuser`.
+2. **No-shell hosts (e.g. Render free):** set `CIVIC_BOOTSTRAP_ADMIN_EMAIL`
+   (and optionally `CIVIC_BOOTSTRAP_ADMIN_SUPERUSER=1`, plus
+   `CIVIC_ADMIN_PASSWORD` to avoid a generated one) on the service. On the next
+   boot the Dockerfile runs the same management command once — idempotent, never
+   resets an existing password, and non-fatal. The generated password is printed
+   **once** to the service's private deploy logs. **Remove the variable after the
+   account exists.** Never expose a bootstrap endpoint or a password in frontend
+   code.

@@ -18,13 +18,13 @@ services:
       - key: DB_ENGINE
         value: postgresql
       - key: DB_NAME
-        sync: false # from your managed Postgres
+        sync: false # from your managed Postgres (Neon/Supabase/Aiven or Render)
       - key: DB_USER
         sync: false
       - key: DB_PASSWORD
         sync: false
       - key: DB_HOST
-        sync: false
+        sync: false # external managed DB (e.g. Neon pooled host); add DB_SSLMODE=require for TLS
       - key: DB_PORT
         value: "5432"
       - key: SECURE_SSL_REDIRECT

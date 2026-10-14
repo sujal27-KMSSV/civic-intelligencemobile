@@ -93,16 +93,35 @@ ASGI_APPLICATION = "config.asgi.application"
 
 # SQLite by default; switch to Postgres with DB_ENGINE=postgresql + DB_* vars.
 if os.getenv("DB_ENGINE", "sqlite").strip().lower() == "postgresql":
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("DB_NAME", "civic_intelligence"),
-            "USER": os.getenv("DB_USER", "civic"),
-            "PASSWORD": os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-            "PORT": os.getenv("DB_PORT", "5432"),
-        }
+    _db = {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", "civic_intelligence"),
+        "USER": os.getenv("DB_USER", "civic"),
+        "PASSWORD": os.getenv("DB_PASSWORD", ""),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
+    # External managed Postgres (Neon/Supabase/Aiven) reaches the app over the
+    # public internet and REQUIRES TLS. libpq's default `sslmode=prefer` usually
+    # negotiates TLS automatically, but set DB_SSLMODE=require to make the
+    # encryption mandatory (and fail fast if it cannot be established). The
+    # options below are passed straight to psycopg, so unknown keys are avoided.
+    _db_options = {}
+    if os.getenv("DB_SSLMODE", "").strip():
+        _db_options["sslmode"] = os.getenv("DB_SSLMODE").strip()
+    if os.getenv("DB_CHANNEL_BINDING", "").strip():
+        _db_options["channel_binding"] = os.getenv("DB_CHANNEL_BINDING").strip()
+    if os.getenv("DB_CONNECT_TIMEOUT", "").strip():
+        _db_options["connect_timeout"] = int(os.getenv("DB_CONNECT_TIMEOUT"))
+    if _db_options:
+        _db["OPTIONS"] = _db_options
+    # Reuse TLS connections between requests. Each new connection to a
+    # scale-to-zero external DB can pay a cold-start penalty, so a non-zero age
+    # (e.g. 60s, below Neon's 5-minute suspend) keeps the app warm. Default 0
+    # preserves the previous per-request behaviour.
+    _db["CONN_MAX_AGE"] = int(os.getenv("DB_CONN_MAX_AGE", "0"))
+    _db["CONN_HEALTH_CHECKS"] = _db["CONN_MAX_AGE"] > 0
+    DATABASES = {"default": _db}
 else:
     DATABASES = {
         "default": {
